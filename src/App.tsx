@@ -1,8 +1,10 @@
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { AppProvider, useApp } from "@/context/AppContext";
 import { Sidebar } from "@/components/Sidebar";
 import { ChatArea } from "@/components/ChatArea";
 import { SettingsPanel } from "@/components/settings/SettingsPanel";
+
+const DevAudit = import.meta.env.DEV ? lazy(() => import("@/components/DevAudit")) : null;
 
 function ThemeProvider({ children }: { children: React.ReactNode }) {
   const { settings } = useApp();
@@ -41,6 +43,11 @@ function AppShell() {
         <Sidebar />
         <ChatArea />
         <SettingsPanel />
+        {DevAudit && (
+          <Suspense fallback={null}>
+            <DevAudit />
+          </Suspense>
+        )}
       </div>
     </ThemeProvider>
   );

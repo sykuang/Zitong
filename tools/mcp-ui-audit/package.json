@@ -1,0 +1,14 @@
+{
+  "name": "mcp-ui-audit",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "MCP server that bridges to Zitong's live webview for real-time UI auditing",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "ws": "^8.18.0"
+  }
+}
