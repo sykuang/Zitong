@@ -202,7 +202,7 @@ export function ChatInput() {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Type a message... (Enter to send, Shift+Enter for new line)"
-              className="w-full resize-none glass-input rounded-2xl px-4 py-3 text-sm text-text-primary placeholder:text-text-muted transition-all focus-visible:ring-2 focus-visible:ring-primary/50"
+              className="w-full resize-none glass-input rounded-2xl px-4 py-3 text-sm text-text-primary placeholder:text-text-muted transition-all focus-visible:ring-2 focus-visible:ring-primary/50 min-h-[46px]"
               minRows={1}
               maxRows={8}
               disabled={isStreaming}

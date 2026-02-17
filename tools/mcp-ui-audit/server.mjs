@@ -19,7 +19,7 @@ import { WebSocketServer } from "ws";
 import { z } from "zod";
 
 const WS_PORT = 17891;
-const RESPONSE_TIMEOUT = 8000; // 8 seconds
+const RESPONSE_TIMEOUT = 30000; // 30 seconds
 
 // ─── WebSocket Bridge ────────────────────────────────────────────────
 
