@@ -88,7 +88,12 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Build Tauri app
+      - name: Build Tauri app (PR - no bundle/sign)
+        if: github.event_name == 'pull_request'
+        run: pnpm tauri build --no-bundle
+
+      - name: Build Tauri app (push - full bundle)
+        if: github.event_name == 'push'
         run: pnpm tauri build
         env:
           TAURI_SIGNING_PRIVATE_KEY: ""

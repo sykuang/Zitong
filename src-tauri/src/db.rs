@@ -37,6 +37,7 @@ pub struct Message {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
 pub struct Attachment {
     pub id: String,
     pub message_id: String,
@@ -352,7 +353,7 @@ impl Database {
         if count > 0 { return Ok(()); }
 
         let now = chrono::Utc::now().timestamp_millis();
-        let seeds = vec![
+        let seeds = [
             ("general_assistant", "General Assistant", "🤖", "A helpful, general-purpose AI assistant.", "You are a helpful AI assistant. Answer questions clearly and concisely."),
             ("creative_writer", "Creative Writer", "✍️", "Specializes in creative writing and storytelling.", "You are a creative writing assistant. Help with stories, poems, scripts and creative content. Be imaginative and expressive."),
             ("code_helper", "Code Helper", "💻", "Expert programmer and code reviewer.", "You are an expert programmer. Help write, debug, and review code. Explain technical concepts clearly. Always provide working code examples."),
@@ -512,6 +513,7 @@ impl Database {
     // Message CRUD
     // ============================================
 
+    #[allow(clippy::too_many_arguments)]
     pub fn create_message(
         &self,
         id: &str,

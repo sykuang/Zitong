@@ -9,6 +9,7 @@ use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::TrayIconBuilder;
 
 #[cfg(target_os = "macos")]
+#[allow(clippy::unused_unit)]
 mod panel;
 
 mod clipboard;
@@ -144,7 +145,7 @@ pub fn run() {
                             if let Some(win) = app.get_webview_window("main") {
                                 // Restore Dock icon before showing window
                                 #[cfg(target_os = "macos")]
-                                unsafe {
+                                {
                                     use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy};
                                     use objc2::MainThreadMarker;
                                     if let Some(mtm) = MainThreadMarker::new() {

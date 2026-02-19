@@ -246,7 +246,7 @@ pub fn relaunch_app(app: tauri::AppHandle) -> Result<(), String> {
         .and_then(|p| p.parent()); // Zitong.app/
 
     if let Some(bundle) = app_bundle {
-        if bundle.extension().map_or(false, |ext| ext == "app") {
+        if bundle.extension().is_some_and(|ext| ext == "app") {
             // Use 'open -n' to launch a new instance of the bundle
             let _ = std::process::Command::new("open")
                 .arg("-n")
