@@ -167,6 +167,7 @@ struct OpenAIModelsResponse {
 struct OpenAIModelEntry {
     id: String,
     #[serde(default)]
+    #[allow(dead_code)]
     owned_by: Option<String>,
 }
 
@@ -573,6 +574,7 @@ struct OAuthTokenResponse {
 #[derive(Deserialize)]
 struct CopilotTokenResponse {
     token: Option<String>,
+    #[allow(dead_code)]
     expires_at: Option<i64>,
     endpoints: Option<CopilotEndpoints>,
 }
@@ -973,6 +975,7 @@ async fn stream_openai_compatible(
 // ============================================
 
 #[derive(Serialize)]
+#[allow(dead_code)]
 struct AnthropicRequest<'a> {
     model: &'a str,
     messages: &'a [ChatMessage],
