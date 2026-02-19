@@ -8,6 +8,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
+    "uipro:init": "uipro init --ai claude",
     "install:dmg": "DMG=$(ls src-tauri/target/release/bundle/dmg/*.dmg | head -1) && hdiutil attach \"$DMG\" && cp -R '/Volumes/Zitong/Zitong.app' /Applications/ && hdiutil detach '/Volumes/Zitong'"
   },
   "dependencies": {
@@ -35,6 +36,7 @@
     "@vitejs/plugin-react": "^4.6.0",
     "tailwindcss": "^4.1.18",
     "typescript": "~5.8.3",
+    "uipro-cli": "latest",
     "vite": "^7.0.4"
   }
 }
