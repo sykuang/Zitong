@@ -47,7 +47,7 @@ export function SettingsPanel() {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in">
-      <div className="glass rounded-2xl shadow-2xl w-[720px] max-h-[80vh] flex flex-col border border-glass-border overflow-hidden">
+        <div className="glass rounded-2xl shadow-2xl w-[800px] max-w-[90vw] max-h-[80vh] flex flex-col border border-glass-border overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-glass-border">
           <h2 className="text-base font-semibold text-text-primary flex items-center gap-2">
@@ -64,12 +64,12 @@ export function SettingsPanel() {
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-glass-border px-2">
+        <div className="flex overflow-x-auto scrollbar-hide border-b border-glass-border px-2">
           {TABS.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium transition-colors relative ${
+              className={`flex shrink-0 items-center gap-1.5 px-3 py-2.5 text-sm font-medium whitespace-nowrap transition-colors relative ${
                 activeTab === tab.id
                   ? "text-primary"
                   : "text-text-secondary hover:text-text-primary"

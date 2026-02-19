@@ -56,6 +56,7 @@ pub struct Provider {
     pub name: String,
     pub api_key: Option<String>,
     pub base_url: Option<String>,
+    pub default_model: Option<String>,
     pub enabled: bool,
 }
 
@@ -97,6 +98,8 @@ pub struct AppSettings {
     pub chat_bubble_style: String,
     pub code_theme: String,
     pub compact_mode: bool,
+    pub launch_at_login: bool,
+    pub start_as_background: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -149,6 +152,8 @@ impl Default for AppSettings {
             chat_bubble_style: "minimal".to_string(),
             code_theme: "oneDark".to_string(),
             compact_mode: false,
+            launch_at_login: false,
+            start_as_background: false,
         }
     }
 }
@@ -216,6 +221,7 @@ impl Database {
                 name            TEXT NOT NULL,
                 api_key         TEXT,
                 base_url        TEXT,
+                default_model   TEXT,
                 enabled         INTEGER NOT NULL DEFAULT 1
             );
 
@@ -285,6 +291,15 @@ impl Database {
             PRAGMA foreign_keys=ON;
         ",
         )?;
+
+        // --- Column migrations for existing databases ---
+        // Add default_model to providers if it doesn't exist yet
+        let has_default_model: bool = conn
+            .prepare("SELECT default_model FROM providers LIMIT 0")
+            .is_ok();
+        if !has_default_model {
+            conn.execute_batch("ALTER TABLE providers ADD COLUMN default_model TEXT;")?;
+        }
 
         // Drop the lock before calling seed methods that also acquire it
         drop(conn);
@@ -583,14 +598,15 @@ impl Database {
     pub fn save_provider(&self, provider: &Provider) -> Result<()> {
         let conn = self.conn.lock().unwrap();
         conn.execute(
-            "INSERT OR REPLACE INTO providers (id, provider_type, name, api_key, base_url, enabled)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            "INSERT OR REPLACE INTO providers (id, provider_type, name, api_key, base_url, default_model, enabled)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
             params![
                 provider.id,
                 provider.provider_type,
                 provider.name,
                 provider.api_key,
                 provider.base_url,
+                provider.default_model,
                 provider.enabled as i64,
             ],
         )?;
@@ -600,7 +616,7 @@ impl Database {
     pub fn list_providers(&self) -> Result<Vec<Provider>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT id, provider_type, name, api_key, base_url, enabled FROM providers ORDER BY name",
+            "SELECT id, provider_type, name, api_key, base_url, default_model, enabled FROM providers ORDER BY name",
         )?;
 
         let rows = stmt.query_map([], |row| {
@@ -610,7 +626,8 @@ impl Database {
                 name: row.get(2)?,
                 api_key: row.get(3)?,
                 base_url: row.get(4)?,
-                enabled: row.get::<_, i64>(5)? != 0,
+                default_model: row.get(5)?,
+                enabled: row.get::<_, i64>(6)? != 0,
             })
         })?;
 
@@ -620,7 +637,7 @@ impl Database {
     pub fn get_provider(&self, id: &str) -> Result<Provider> {
         let conn = self.conn.lock().unwrap();
         conn.query_row(
-            "SELECT id, provider_type, name, api_key, base_url, enabled FROM providers WHERE id = ?1",
+            "SELECT id, provider_type, name, api_key, base_url, default_model, enabled FROM providers WHERE id = ?1",
             params![id],
             |row| {
                 Ok(Provider {
@@ -629,7 +646,8 @@ impl Database {
                     name: row.get(2)?,
                     api_key: row.get(3)?,
                     base_url: row.get(4)?,
-                    enabled: row.get::<_, i64>(5)? != 0,
+                    default_model: row.get(5)?,
+                    enabled: row.get::<_, i64>(6)? != 0,
                 })
             },
         )
@@ -669,6 +687,8 @@ impl Database {
                 "chat_bubble_style" => settings.chat_bubble_style = value,
                 "code_theme" => settings.code_theme = value,
                 "compact_mode" => settings.compact_mode = value == "true",
+                "launch_at_login" => settings.launch_at_login = value == "true",
+                "start_as_background" => settings.start_as_background = value == "true",
                 _ => {}
             }
         }
@@ -692,6 +712,8 @@ impl Database {
             ("chat_bubble_style", settings.chat_bubble_style.clone()),
             ("code_theme", settings.code_theme.clone()),
             ("compact_mode", settings.compact_mode.to_string()),
+            ("launch_at_login", settings.launch_at_login.to_string()),
+            ("start_as_background", settings.start_as_background.to_string()),
         ];
 
         for (key, value) in pairs {

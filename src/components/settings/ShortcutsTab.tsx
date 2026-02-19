@@ -24,14 +24,16 @@ function HotkeyRecorder({
     const key = e.key;
     if (["Control", "Meta", "Alt", "Shift"].includes(key)) return null;
 
-    const keyMap: Record<string, string> = {
-      " ": "Space",
+    // Use e.code for reliable physical key detection (e.key can be altered
+    // by modifiers — e.g. Option+Space on macOS produces a non-breaking space).
+    const codeMap: Record<string, string> = {
+      Space: "Space",
       ArrowUp: "Up", ArrowDown: "Down", ArrowLeft: "Left", ArrowRight: "Right",
       Escape: "Escape", Enter: "Enter", Backspace: "Backspace", Delete: "Delete",
       Tab: "Tab", Home: "Home", End: "End", PageUp: "PageUp", PageDown: "PageDown",
     };
 
-    let mappedKey = keyMap[key] || key;
+    let mappedKey = codeMap[e.code] || key;
     if (mappedKey.length === 1) mappedKey = mappedKey.toUpperCase();
 
     parts.push(mappedKey);

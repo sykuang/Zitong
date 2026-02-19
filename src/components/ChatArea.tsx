@@ -65,8 +65,10 @@ export function ChatArea() {
       settings?.defaultProviderId ||
       configuredProvider?.id ||
       "openai";
+    const resolvedProvider = providers.find((p) => p.id === providerId);
     const model =
       activeAssistant?.model ||
+      resolvedProvider?.defaultModel ||
       settings?.defaultModel ||
       "gpt-4o";
     const systemPrompt =

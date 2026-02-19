@@ -179,6 +179,15 @@ export async function deleteAiCommand(id: string): Promise<void> {
   return invoke("delete_ai_command", { id });
 }
 
+export async function executeAiCommand(req: {
+  selectedText: string;
+  systemPrompt: string;
+  providerId?: string;
+  model?: string;
+}): Promise<string> {
+  return invoke("execute_ai_command", { req });
+}
+
 // ============================================
 // Assistant Commands
 // ============================================

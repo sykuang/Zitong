@@ -31,7 +31,10 @@ export function ProvidersTab({
   ];
 
   const savedById = new Map(providers.map((p) => [p.id, p]));
-  const allProviders = defaultProviders.map((dp) => savedById.get(dp.id) ?? dp);
+  const allProviders = defaultProviders.map((dp) => {
+    const saved = savedById.get(dp.id);
+    return saved ? { ...dp, ...saved } : dp;
+  });
   const selected = allProviders.find((p) => p.id === selectedId) || null;
 
   const handleSave = async (provider: Provider) => {
@@ -123,6 +126,7 @@ function ProviderDetail({
   const [name, setName] = useState(provider.name);
   const [apiKey, setApiKey] = useState(provider.apiKey || "");
   const [baseUrl, setBaseUrl] = useState(provider.baseUrl || "");
+  const [defaultModel, setDefaultModel] = useState(provider.defaultModel || "");
   const [enabled, setEnabled] = useState(provider.enabled);
   const [models, setModels] = useState<import("@/types").ModelInfo[]>([]);
   const [modelsLoading, setModelsLoading] = useState(false);
@@ -204,7 +208,7 @@ function ProviderDetail({
   };
 
   const handleSave = async () => {
-    await onSave({ ...provider, name, apiKey, baseUrl, enabled });
+    await onSave({ ...provider, name, apiKey, baseUrl, defaultModel: defaultModel || undefined, enabled });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -347,13 +351,29 @@ function ProviderDetail({
               {modelsLoading ? "Loading..." : "Refresh"}
             </button>
           </div>
-          <div className="text-xs text-text-muted">
-            {modelsLoading
-              ? "Fetching models..."
-              : models.length > 0
-              ? `${models.length} models available`
-              : "No models found"}
-          </div>
+          {models.length > 0 ? (
+            <>
+              <select
+                value={defaultModel}
+                onChange={(e) => setDefaultModel(e.target.value)}
+                className="w-full px-3 py-2 text-sm rounded-lg glass-input text-text-primary"
+              >
+                <option value="">No default (use global default)</option>
+                {models.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name || m.id}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-text-muted mt-0.5">
+                {models.length} models available
+              </p>
+            </>
+          ) : (
+            <div className="text-xs text-text-muted">
+              {modelsLoading ? "Fetching models..." : "No models found"}
+            </div>
+          )}
         </div>
       )}
 

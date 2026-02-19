@@ -2,6 +2,17 @@
 // Core types for the Zitong AI Chat Client
 // ============================================
 
+// --- Permissions types ---
+
+export interface PermissionsStatus {
+  accessibilityOk: boolean;
+  automationOk: boolean;
+  canCopy: boolean;
+  details: string | null;
+  isBundled: boolean;
+  executablePath: string;
+}
+
 // --- Provider & Model types ---
 
 export type ProviderType =
@@ -37,6 +48,7 @@ export interface Provider {
   name: string;
   apiKey?: string;
   baseUrl?: string;
+  defaultModel?: string;
   enabled: boolean;
 }
 
@@ -125,6 +137,8 @@ export interface AppSettings {
   chatBubbleStyle: string;
   codeTheme: string;
   compactMode: boolean;
+  launchAtLogin: boolean;
+  startAsBackground: boolean;
 }
 
 // --- AI Command types ---

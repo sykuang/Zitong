@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 22 22" width="22" height="22">
+  <!-- Tray icon: monochrome 文 character + star, designed for macOS template image -->
+  <g fill="black" stroke="none">
+    <!-- Stylized 文 character -->
+    <!-- Top horizontal stroke -->
+    <rect x="4" y="4" width="14" height="2" rx="1"/>
+    <!-- Left-falling stroke -->
+    <polygon points="10,7 11.5,7 5,18 3.5,18"/>
+    <!-- Right-falling stroke -->
+    <polygon points="10.5,7 12,7 18.5,18 17,18"/>
+    <!-- Small star top-right -->
+    <circle cx="17.5" cy="3.5" r="1.5"/>
+  </g>
+</svg>

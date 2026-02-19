@@ -4,10 +4,13 @@ import React, {
   useState,
   useCallback,
   useEffect,
+  useRef,
   type ReactNode,
 } from "react";
 import { Channel } from "@tauri-apps/api/core";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
+import { register, unregisterAll } from "@tauri-apps/plugin-global-shortcut";
 import type {
   Conversation,
   Message,
@@ -74,6 +77,8 @@ const defaultSettings: AppSettings = {
   chatBubbleStyle: "minimal",
   codeTheme: "oneDark",
   compactMode: false,
+  launchAtLogin: false,
+  startAsBackground: false,
 };
 
 const AppContext = createContext<AppState | null>(null);
@@ -99,6 +104,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const abortControllerRef = React.useRef<AbortController | null>(null);
+  const registeredShortcutRef = useRef<string | null>(null);
 
   const loadConversations = useCallback(async () => {
     try {
@@ -293,7 +299,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     () => setSettingsOpen((prev) => !prev),
     []
   );
-
   // Initial load
   useEffect(() => {
     loadConversations();
@@ -301,6 +306,75 @@ export function AppProvider({ children }: { children: ReactNode }) {
     loadSettings();
     loadAssistants();
   }, [loadConversations, loadProviders, loadSettings, loadAssistants]);
+
+  // Listen for "open-settings" event from macOS system menu (Cmd+,)
+  useEffect(() => {
+    const unlisten = listen("open-settings", () => {
+      setSettingsOpen(true);
+    });
+    return () => { unlisten.then((fn) => fn()); };
+  }, []);
+
+  // Listen for "open-conversation" event from overlay (answer_in_new)
+  useEffect(() => {
+    const unlisten = listen<{ conversationId: string }>(
+      "open-conversation",
+      async (event) => {
+        const { conversationId } = event.payload;
+        // Refresh conversation list and navigate to the new one
+        await loadConversations();
+        setActiveConversationId(conversationId);
+        try {
+          const msgs = await commands.getMessages(conversationId);
+          setMessages(msgs);
+        } catch (err) {
+          console.error("Failed to load messages for new conversation:", err);
+        }
+      }
+    );
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, [loadConversations]);
+
+  // Register global hotkey
+  useEffect(() => {
+    const hotkey = settings?.globalHotkey;
+    if (!hotkey) return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        // Always unregister everything first to avoid duplicate registration
+        await unregisterAll();
+        if (cancelled) return;
+
+        await register(hotkey, (event) => {
+          if (event.state === "Pressed") {
+            // Call the Rust toggle_overlay command which uses NSPanel
+            // to show above fullscreen apps on macOS
+            invoke("toggle_overlay").catch((err) => {
+              console.error("Failed to toggle overlay:", err);
+            });
+          }
+        });
+        registeredShortcutRef.current = hotkey;
+        console.log("Global shortcut registered:", hotkey);
+      } catch (err) {
+        console.error("Failed to register global shortcut:", err);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      // Unregister on cleanup (React strict mode, hotkey change, unmount)
+      unregisterAll().catch((err) =>
+        console.error("Failed to unregister shortcuts:", err)
+      );
+      registeredShortcutRef.current = null;
+    };
+  }, [settings?.globalHotkey]);
 
   const value: AppState = {
     conversations,

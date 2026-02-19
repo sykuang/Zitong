@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <!-- Background gradient: deep purple to violet -->
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7C3AED"/>
+      <stop offset="50%" stop-color="#8B5CF6"/>
+      <stop offset="100%" stop-color="#6D28D9"/>
+    </linearGradient>
+    <!-- Subtle inner glow -->
+    <radialGradient id="glow" cx="50%" cy="40%" r="55%">
+      <stop offset="0%" stop-color="#A78BFA" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#7C3AED" stop-opacity="0"/>
+    </radialGradient>
+    <!-- Star sparkle gradient -->
+    <radialGradient id="star-glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.9"/>
+      <stop offset="60%" stop-color="#DDD6FE" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#C4B5FD" stop-opacity="0"/>
+    </radialGradient>
+    <!-- macOS squircle clip -->
+    <clipPath id="squircle">
+      <rect x="0" y="0" width="1024" height="1024" rx="228" ry="228"/>
+    </clipPath>
+  </defs>
+
+  <!-- Everything clipped to squircle — transparent corners -->
+  <g clip-path="url(#squircle)">
+  <!-- Background fills entire canvas -->
+  <rect x="0" y="0" width="1024" height="1024" fill="url(#bg)"/>
+  <!-- Inner glow overlay -->
+  <rect x="0" y="0" width="1024" height="1024" fill="url(#glow)"/>
+
+  <!-- Stylized 文 character — brushstroke style -->
+  <g transform="translate(512, 480)" fill="none" stroke="white" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Top horizontal stroke (一) — slight arc for brushstroke feel -->
+    <path d="M-220,-180 C-100,-195 100,-195 220,-180"
+          stroke-width="38" opacity="0.95"/>
+
+    <!-- Left-falling stroke (丿) — elegant diagonal -->
+    <path d="M-10,-150 C-30,-60 -120,80 -230,230"
+          stroke-width="36" opacity="0.95"/>
+
+    <!-- Right-falling stroke (㇏ / 捺) — sweeping with thick-to-thin -->
+    <path d="M-10,-150 C10,-50 100,80 250,210"
+          stroke-width="36" opacity="0.95"/>
+
+    <!-- Crossing tick/dot stroke (亠 part, small) -->
+    <path d="M-60,-110 C-20,-80 20,-80 60,-110"
+          stroke-width="28" opacity="0.85"/>
+  </g>
+
+  <!-- 文曲星 — Star constellation (6-pointed star, top-right area) -->
+  <g transform="translate(740, 210)">
+    <!-- Main star -->
+    <circle cx="0" cy="0" r="36" fill="url(#star-glow)"/>
+    <polygon points="0,-28 8,-8 28,0 8,8 0,28 -8,8 -28,0 -8,-8"
+             fill="white" opacity="0.95"/>
+    <!-- Small companion stars -->
+    <circle cx="-65" cy="30" r="6" fill="white" opacity="0.6"/>
+    <circle cx="-40" cy="-50" r="4" fill="white" opacity="0.45"/>
+    <circle cx="35" cy="-40" r="5" fill="white" opacity="0.5"/>
+    <circle cx="50" cy="25" r="3.5" fill="white" opacity="0.35"/>
+  </g>
+
+  <!-- Subtle bottom-right sparkle -->
+  <g transform="translate(780, 750)" opacity="0.25">
+    <circle cx="0" cy="0" r="4" fill="white"/>
+    <circle cx="30" cy="-20" r="3" fill="white"/>
+  </g>
+  </g><!-- close squircle clip group -->
+</svg>

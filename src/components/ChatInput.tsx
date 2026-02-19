@@ -26,8 +26,9 @@ export function ChatInput() {
     return "openai";
   })();
 
+  const defaultProvider = providers.find((p) => p.id === defaultProviderId);
   const [selectedModel, setSelectedModel] = useState(
-    settings?.defaultModel || ""
+    defaultProvider?.defaultModel || settings?.defaultModel || ""
   );
   const [selectedProviderId, setSelectedProviderId] = useState(defaultProviderId);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -63,7 +64,12 @@ export function ChatInput() {
         setModels(result);
         if (result.length > 0) {
           const ids = result.map((m) => m.id);
-          if (!ids.includes(selectedModel)) {
+          // Prefer provider's defaultModel, then current selection, then first available
+          const provider = providers.find((p) => p.id === selectedProviderId);
+          const providerDefault = provider?.defaultModel;
+          if (providerDefault && ids.includes(providerDefault)) {
+            setSelectedModel(providerDefault);
+          } else if (!ids.includes(selectedModel)) {
             setSelectedModel(result[0].id);
           }
         }

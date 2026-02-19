@@ -1,8 +1,14 @@
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense, useEffect, useState, useCallback } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { AppProvider, useApp } from "@/context/AppContext";
 import { Sidebar } from "@/components/Sidebar";
 import { ChatArea } from "@/components/ChatArea";
 import { SettingsPanel } from "@/components/settings/SettingsPanel";
+import { PermissionGuide } from "@/components/PermissionGuide";
+import type { PermissionsStatus } from "@/types";
+
+const PERMISSION_GUIDE_DISMISSED_KEY = "zitong_permission_guide_dismissed";
 
 const DevAudit = import.meta.env.DEV ? lazy(() => import("@/components/DevAudit")) : null;
 
@@ -32,6 +38,44 @@ function ThemeProvider({ children }: { children: React.ReactNode }) {
 }
 
 function AppShell() {
+  const [showPermissionGuide, setShowPermissionGuide] = useState(false);
+
+  useEffect(() => {
+    // Only show the guide if it hasn't been dismissed before
+    const dismissed = localStorage.getItem(PERMISSION_GUIDE_DISMISSED_KEY);
+    if (dismissed) return;
+
+    // Check if any permission is missing
+    invoke<PermissionsStatus>("check_permissions")
+      .then((status) => {
+        if (!status.canCopy) setShowPermissionGuide(true);
+      })
+      .catch(() => {}); // If check fails, don't show the guide
+  }, []);
+
+  // Listen for "show-permission-guide" event from backend
+  // (fired when user tries overlay shortcut but permissions are missing)
+  useEffect(() => {
+    const unlisten = listen("show-permission-guide", () => {
+      setShowPermissionGuide(true);
+    });
+    return () => { unlisten.then((fn) => fn()); };
+  }, []);
+
+  const handlePermissionDone = useCallback(() => {
+    localStorage.setItem(PERMISSION_GUIDE_DISMISSED_KEY, "true");
+    setShowPermissionGuide(false);
+  }, []);
+
+  // Show permission guide (first launch, or when triggered by overlay shortcut)
+  if (showPermissionGuide) {
+    return (
+      <ThemeProvider>
+        <PermissionGuide onDone={handlePermissionDone} />
+      </ThemeProvider>
+    );
+  }
+
   return (
     <ThemeProvider>
       <div className="relative flex h-screen w-screen overflow-hidden">
