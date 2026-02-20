@@ -10,6 +10,9 @@ use tauri_nspanel::{
     WebviewWindowExt as NspanelWebviewWindowExt, Panel,
 };
 
+const OVERLAY_WIDTH: f64 = 520.0;
+const OVERLAY_HEIGHT: f64 = 520.0;
+
 // Define our custom NSPanel subclass
 tauri_panel! {
     panel!(ZitongPanel {
@@ -51,6 +54,61 @@ fn configure_panel<R: tauri::Runtime>(panel: &Arc<dyn Panel<R>>) {
             .can_join_all_spaces()
             .into(),
     );
+}
+
+/// Get the mouse cursor position and compute a clamped window position so
+/// the overlay stays fully on-screen.  Returns `(x, y)` in Tauri's logical
+/// coordinate system (top-left origin).
+fn get_clamped_overlay_position() -> Option<(f64, f64)> {
+    use objc2::MainThreadMarker;
+    use objc2_app_kit::{NSEvent, NSScreen};
+
+    let mtm = MainThreadMarker::new()?;
+
+    // Mouse position in macOS screen coords (origin = bottom-left of primary)
+    let mouse_pos = NSEvent::mouseLocation();
+
+    // All connected screens; first element is the primary (menu-bar) screen
+    let screens = NSScreen::screens(mtm);
+    let count = screens.count();
+    if count == 0 {
+        return None;
+    }
+
+    let primary = screens.objectAtIndex(0);
+    let primary_frame = primary.frame();
+    let primary_h = primary_frame.size.height;
+
+    // Find the visible frame of the screen that contains the cursor
+    let mut vis = primary.visibleFrame();
+    for i in 0..count {
+        let screen = screens.objectAtIndex(i);
+        let f = screen.frame();
+        if mouse_pos.x >= f.origin.x
+            && mouse_pos.x < f.origin.x + f.size.width
+            && mouse_pos.y >= f.origin.y
+            && mouse_pos.y < f.origin.y + f.size.height
+        {
+            vis = screen.visibleFrame();
+            break;
+        }
+    }
+
+    // Convert mouse position to Tauri coords (top-left origin, Y down)
+    let mouse_x = mouse_pos.x;
+    let mouse_y = primary_h - mouse_pos.y;
+
+    // Convert visible frame to Tauri coords
+    let vis_x = vis.origin.x;
+    let vis_y = primary_h - vis.origin.y - vis.size.height;
+    let vis_w = vis.size.width;
+    let vis_h = vis.size.height;
+
+    // Anchor the window's top-left corner at the cursor, then clamp
+    let x = mouse_x.max(vis_x).min(vis_x + vis_w - OVERLAY_WIDTH);
+    let y = mouse_y.max(vis_y).min(vis_y + vis_h - OVERLAY_HEIGHT);
+
+    Some((x, y))
 }
 
 /// Convert the "overlay" webview window into an NSPanel with the right
@@ -131,6 +189,13 @@ pub fn toggle_overlay_panel(handle: &tauri::AppHandle) -> Result<(), Box<dyn std
 
         // Re-apply level + behavior in case they were reset
         configure_panel(&panel);
+
+        // Position the overlay at the mouse cursor, clamped to screen bounds
+        if let Some((x, y)) = get_clamped_overlay_position() {
+            if let Some(win) = handle.get_webview_window("overlay") {
+                let _ = win.set_position(tauri::LogicalPosition::new(x, y));
+            }
+        }
 
         panel.show();
         panel.make_key_window();
