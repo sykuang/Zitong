@@ -203,3 +203,15 @@ export async function saveAssistant(assistant: Assistant): Promise<void> {
 export async function deleteAssistant(id: string): Promise<void> {
   return invoke("delete_assistant", { id });
 }
+
+// ============================================
+// Autostart Commands
+// ============================================
+
+export async function setLaunchAtLogin(enabled: boolean): Promise<void> {
+  return invoke("set_launch_at_login", { enabled });
+}
+
+export async function getLaunchAtLogin(): Promise<boolean> {
+  return invoke("get_launch_at_login");
+}
