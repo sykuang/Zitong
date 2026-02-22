@@ -10,9 +10,6 @@ use tauri_nspanel::{
     WebviewWindowExt as NspanelWebviewWindowExt, Panel,
 };
 
-const OVERLAY_WIDTH: f64 = 520.0;
-const OVERLAY_HEIGHT: f64 = 520.0;
-
 // Define our custom NSPanel subclass
 tauri_panel! {
     panel!(ZitongPanel {
@@ -59,7 +56,10 @@ fn configure_panel<R: tauri::Runtime>(panel: &Arc<dyn Panel<R>>) {
 /// Get the mouse cursor position and compute a clamped window position so
 /// the overlay stays fully on-screen.  Returns `(x, y)` in Tauri's logical
 /// coordinate system (top-left origin).
-fn get_clamped_overlay_position() -> Option<(f64, f64)> {
+///
+/// `overlay_w` / `overlay_h` are the current logical size of the overlay window
+/// so we never hard-code values that could drift from `tauri.conf.json`.
+fn get_clamped_overlay_position(overlay_w: f64, overlay_h: f64) -> Option<(f64, f64)> {
     use objc2::MainThreadMarker;
     use objc2_app_kit::{NSEvent, NSScreen};
 
@@ -104,9 +104,14 @@ fn get_clamped_overlay_position() -> Option<(f64, f64)> {
     let vis_w = vis.size.width;
     let vis_h = vis.size.height;
 
-    // Anchor the window's top-left corner at the cursor, then clamp
-    let x = mouse_x.max(vis_x).min(vis_x + vis_w - OVERLAY_WIDTH);
-    let y = mouse_y.max(vis_y).min(vis_y + vis_h - OVERLAY_HEIGHT);
+    // Anchor the window's top-left corner at the cursor, then clamp.
+    // Ensure the upper bound is never less than the lower bound, so that
+    // when the overlay is larger than the visible frame we pin it to the
+    // visible frame's origin instead of producing out-of-bounds coords.
+    let max_x = (vis_x + vis_w - overlay_w).max(vis_x);
+    let max_y = (vis_y + vis_h - overlay_h).max(vis_y);
+    let x = mouse_x.max(vis_x).min(max_x);
+    let y = mouse_y.max(vis_y).min(max_y);
 
     Some((x, y))
 }
@@ -190,9 +195,16 @@ pub fn toggle_overlay_panel(handle: &tauri::AppHandle) -> Result<(), Box<dyn std
         // Re-apply level + behavior in case they were reset
         configure_panel(&panel);
 
-        // Position the overlay at the mouse cursor, clamped to screen bounds
-        if let Some((x, y)) = get_clamped_overlay_position() {
-            if let Some(win) = handle.get_webview_window("overlay") {
+        // Position the overlay at the mouse cursor, clamped to screen bounds.
+        // Read the actual window size so we don't hard-code values that could
+        // drift from the dimensions in tauri.conf.json.
+        if let Some(win) = handle.get_webview_window("overlay") {
+            let scale = win.scale_factor().unwrap_or(1.0);
+            let (overlay_w, overlay_h) = win
+                .outer_size()
+                .map(|s| (s.width as f64 / scale, s.height as f64 / scale))
+                .unwrap_or((520.0, 520.0));
+            if let Some((x, y)) = get_clamped_overlay_position(overlay_w, overlay_h) {
                 let _ = win.set_position(tauri::LogicalPosition::new(x, y));
             }
         }
