@@ -91,6 +91,14 @@ export function SettingsApp() {
     emit("settings-changed", { kind: "settings" });
   }, [loadSettings]);
 
+  const onRefreshAssistants = useCallback(() => {
+    emit("settings-changed", { kind: "assistants" });
+  }, []);
+
+  const onRefreshCommands = useCallback(() => {
+    emit("settings-changed", { kind: "commands" });
+  }, []);
+
   // Initial data load
   useEffect(() => {
     loadProviders();
@@ -125,6 +133,16 @@ export function SettingsApp() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  // Flush pending debounced saves before the window unloads
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      // Dispatch a custom event that child components can listen to for flushing
+      window.dispatchEvent(new Event("flush-pending-saves"));
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, []);
 
   return (
@@ -171,8 +189,8 @@ export function SettingsApp() {
           <ShortcutsTab settings={settings} onRefresh={onRefreshSettings} />
         )}
         {activeTab === "templates" && <TemplatesTab />}
-        {activeTab === "commands" && <CommandsTab providers={providers} />}
-        {activeTab === "assistants" && <AssistantsTab providers={providers} />}
+        {activeTab === "commands" && <CommandsTab providers={providers} onRefresh={onRefreshCommands} />}
+        {activeTab === "assistants" && <AssistantsTab providers={providers} onRefresh={onRefreshAssistants} />}
       </div>
     </div>
   );

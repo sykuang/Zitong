@@ -138,9 +138,15 @@ export function ShortcutsTab({
 
   useEffect(() => {
     return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+        // Flush pending save on unmount
+        if (settings) {
+          commands.saveSettings({ ...settings, globalHotkey }).then(() => onRefresh());
+        }
+      }
     };
-  }, []);
+  }, [settings, globalHotkey, onRefresh]);
 
   const handleHotkeyChange = (v: string) => {
     setGlobalHotkey(v);

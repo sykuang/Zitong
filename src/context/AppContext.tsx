@@ -306,20 +306,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // Listen for "settings-changed" event from the settings window
   useEffect(() => {
-    const unlisten = listen("settings-changed", async (event: any) => {
+    type SettingsChangedPayload = {
+      kind: "providers" | "settings" | "assistants" | "commands";
+    };
+    const unlisten = listen<SettingsChangedPayload>("settings-changed", async (event) => {
       const kind = event.payload?.kind;
       if (kind === "providers") {
         loadProviders();
       } else if (kind === "settings") {
         loadSettings();
+      } else if (kind === "assistants") {
+        loadAssistants();
       } else {
         // Reload everything if kind is unknown
         loadProviders();
         loadSettings();
+        loadAssistants();
       }
     });
     return () => { unlisten.then((fn) => fn()); };
-  }, [loadProviders, loadSettings]);
+  }, [loadProviders, loadSettings, loadAssistants]);
 
   // Listen for "open-conversation" event from overlay (answer_in_new)
   useEffect(() => {

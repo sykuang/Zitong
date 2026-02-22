@@ -388,8 +388,10 @@ fn get_launch_at_login() -> Result<bool, String> {
 /// Open the settings window. Creates it on demand; if it already exists, just focuses it.
 #[tauri::command]
 async fn open_settings(app: tauri::AppHandle) -> Result<(), String> {
-    // If the window already exists, just focus it
+    // If the window already exists, make sure it is visible and focused
     if let Some(win) = app.get_webview_window("settings") {
+        win.show().map_err(|e| e.to_string())?;
+        win.unminimize().map_err(|e| e.to_string())?;
         win.set_focus().map_err(|e| e.to_string())?;
         return Ok(());
     }

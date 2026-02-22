@@ -14,12 +14,6 @@ export function TemplatesTab() {
   const latestRef = useRef({ editName: "", editContent: "", editCategory: "general" });
   latestRef.current = { editName, editContent, editCategory };
 
-  useEffect(() => {
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, []);
-
   const autosaveTemplate = useCallback(() => {
     if (!editingId) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -84,12 +78,40 @@ export function TemplatesTab() {
     await loadTemplates();
   };
 
+  const flushPendingSave = useCallback(() => {
+    if (!debounceRef.current || !editingId) return;
+    clearTimeout(debounceRef.current);
+    debounceRef.current = null;
+    const existing = templates.find((t) => t.id === editingId);
+    if (!existing) return;
+    const v = latestRef.current;
+    const vars = Array.from(
+      new Set(
+        (v.editContent.match(/\{\{(\w+)\}\}/g) || []).map((m) =>
+          m.replace(/\{\{|\}\}/g, "")
+        )
+      )
+    );
+    const updated: PromptTemplate = {
+      ...existing,
+      name: v.editName,
+      content: v.editContent,
+      category: v.editCategory,
+      variables: vars,
+      updatedAt: Date.now(),
+    };
+    commands.savePromptTemplate(updated).then(() => loadTemplates());
+  }, [editingId, templates]);
+
+  useEffect(() => {
+    return () => {
+      flushPendingSave();
+    };
+  }, [flushPendingSave]);
+
   const handleSelect = (t: PromptTemplate) => {
     // Flush pending save before switching
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
-      debounceRef.current = null;
-    }
+    flushPendingSave();
     setEditingId(t.id);
     setEditName(t.name);
     setEditContent(t.content);

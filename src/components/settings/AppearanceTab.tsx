@@ -50,9 +50,24 @@ export function AppearanceTab({
 
   useEffect(() => {
     return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+        // Flush pending save on unmount
+        if (settings) {
+          const v = latestRef.current;
+          commands.saveSettings({
+            ...settings,
+            theme: v.theme as AppSettings["theme"],
+            accentColor: v.accentColor,
+            fontFamily: v.fontFamily,
+            chatBubbleStyle: v.chatBubbleStyle,
+            codeTheme: v.codeTheme,
+            compactMode: v.compactMode,
+          }).then(() => onRefresh());
+        }
+      }
     };
-  }, []);
+  }, [settings, onRefresh]);
 
   const accentColors = [
     { id: "violet", color: "bg-violet-500", label: "Violet" },

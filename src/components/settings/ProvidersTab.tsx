@@ -163,7 +163,12 @@ function ProviderDetail({
     return () => {
       cancelledRef.current = true;
       if (pollingRef.current) clearTimeout(pollingRef.current);
-      if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+        // Flush pending save on unmount
+        const v = latestRef.current;
+        onSave({ ...provider, name: v.name, apiKey: v.apiKey, baseUrl: v.baseUrl, defaultModel: v.defaultModel || undefined, enabled: v.enabled });
+      }
     };
   }, []);
 

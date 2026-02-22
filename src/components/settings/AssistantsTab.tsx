@@ -5,7 +5,7 @@ import * as commands from "@/commands";
 
 const ASSISTANT_ICONS = ["🤖", "🧠", "✍️", "💻", "🔍", "📝", "🎨", "📊", "🗣️", "🎯", "⚡", "🌟"];
 
-export function AssistantsTab({ providers }: { providers: Provider[] }) {
+export function AssistantsTab({ providers, onRefresh }: { providers: Provider[]; onRefresh?: () => void }) {
   const [assistants, setAssistants] = useState<Assistant[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -39,6 +39,7 @@ export function AssistantsTab({ providers }: { providers: Provider[] }) {
           prev.map((a) => (a.id === updated.id ? updated : a))
         );
       }
+      onRefresh?.();
     } catch (e) {
       console.error("Failed to save assistant:", e);
     }
@@ -72,6 +73,7 @@ export function AssistantsTab({ providers }: { providers: Provider[] }) {
       setAssistants((prev) => prev.filter((a) => a.id !== id));
       if (selectedId === id)
         setSelectedId(assistants.find((a) => a.id !== id)?.id || null);
+      onRefresh?.();
     } catch (e) {
       console.error("Failed to delete assistant:", e);
     }
@@ -199,7 +201,23 @@ function AssistantDetail({
 
   useEffect(() => {
     return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+        // Flush pending save on unmount
+        const v = latestRef.current;
+        onSave({
+          ...assistant,
+          name: v.name,
+          icon: v.icon,
+          description: v.description,
+          systemPrompt: v.systemPrompt,
+          providerId: v.providerId || undefined,
+          model: v.model || undefined,
+          temperature: v.temperature,
+          maxTokens: v.maxTokens,
+          isDefault: v.isDefault,
+        });
+      }
     };
   }, []);
 
