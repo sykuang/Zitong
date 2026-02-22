@@ -359,9 +359,21 @@ fn set_launch_at_login(app: tauri::AppHandle, enabled: bool) -> Result<(), Strin
     Ok(())
 }
 
+#[cfg(not(desktop))]
+#[tauri::command]
+fn set_launch_at_login(_enabled: bool) -> Result<(), String> {
+    Err("Launch at login is not supported on this platform".into())
+}
+
 #[cfg(desktop)]
 #[tauri::command]
 fn get_launch_at_login(app: tauri::AppHandle) -> Result<bool, String> {
     let manager = app.autolaunch();
     manager.is_enabled().map_err(|e| format!("Failed to check autostart: {e}"))
+}
+
+#[cfg(not(desktop))]
+#[tauri::command]
+fn get_launch_at_login() -> Result<bool, String> {
+    Ok(false)
 }
