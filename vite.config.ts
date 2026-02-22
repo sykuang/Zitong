@@ -16,12 +16,13 @@ export default defineConfig(async () => ({
     },
   },
 
-  // Multi-page: main app + overlay command palette
+  // Multi-page: main app + overlay command palette + settings window
   build: {
     rollupOptions: {
       input: {
         main: resolve(__dirname, "index.html"),
         overlay: resolve(__dirname, "overlay.html"),
+        settings: resolve(__dirname, "settings.html"),
       },
     },
   },

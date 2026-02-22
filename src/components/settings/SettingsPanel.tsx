@@ -38,12 +38,10 @@ const TABS: { id: SettingsTabId; label: string; icon: React.ReactNode }[] = [
 ];
 
 export function SettingsPanel() {
-  const { settingsOpen, toggleSettings, settings, providers, loadProviders, loadSettings } =
+  const { toggleSettings, settings, providers, loadProviders, loadSettings } =
     useApp();
 
   const [activeTab, setActiveTab] = useState<SettingsTabId>("providers");
-
-  if (!settingsOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in">
@@ -87,7 +85,7 @@ export function SettingsPanel() {
         {/* Content */}
         <div className={`flex-1 overflow-y-auto ${activeTab === "providers" || activeTab === "commands" || activeTab === "assistants" || activeTab === "templates" ? "" : "p-5"}`}>
           {activeTab === "providers" && (
-            <ProvidersTab providers={providers} onRefresh={loadProviders} />
+            <ProvidersTab providers={providers} onRefresh={loadProviders} settings={settings} onRefreshSettings={loadSettings} />
           )}
           {activeTab === "general" && (
             <GeneralTab settings={settings} onRefresh={loadSettings} />

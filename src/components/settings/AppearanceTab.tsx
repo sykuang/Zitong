@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import type { AppSettings } from "@/types";
 import * as commands from "@/commands";
 import { Sun, Moon, Monitor } from "lucide-react";
@@ -16,7 +16,43 @@ export function AppearanceTab({
   const [chatBubbleStyle, setChatBubbleStyle] = useState(settings?.chatBubbleStyle || "minimal");
   const [codeTheme, setCodeTheme] = useState(settings?.codeTheme || "oneDark");
   const [compactMode, setCompactMode] = useState(settings?.compactMode || false);
-  const [saved, setSaved] = useState(false);
+
+  const latestRef = useRef({ theme, accentColor, fontFamily, chatBubbleStyle, codeTheme, compactMode });
+  latestRef.current = { theme, accentColor, fontFamily, chatBubbleStyle, codeTheme, compactMode };
+
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const persist = useCallback(
+    (overrides: Partial<AppSettings> = {}) => {
+      if (!settings) return;
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(async () => {
+        try {
+          const v = latestRef.current;
+          await commands.saveSettings({
+            ...settings,
+            theme: v.theme as AppSettings["theme"],
+            accentColor: v.accentColor,
+            fontFamily: v.fontFamily,
+            chatBubbleStyle: v.chatBubbleStyle,
+            codeTheme: v.codeTheme,
+            compactMode: v.compactMode,
+            ...overrides,
+          });
+          await onRefresh();
+        } catch (err) {
+          console.error("Failed to save appearance:", err);
+        }
+      }, 300);
+    },
+    [settings, onRefresh]
+  );
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
 
   const accentColors = [
     { id: "violet", color: "bg-violet-500", label: "Violet" },
@@ -35,26 +71,6 @@ export function AppearanceTab({
     { id: "dark" as const, label: "Dark", icon: <Moon className="w-4 h-4" /> },
   ];
 
-  const handleSave = async () => {
-    if (!settings) return;
-    try {
-      await commands.saveSettings({
-        ...settings,
-        theme: theme as AppSettings["theme"],
-        accentColor,
-        fontFamily,
-        chatBubbleStyle,
-        codeTheme,
-        compactMode,
-      });
-      await onRefresh();
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
-    } catch (err) {
-      console.error("Failed to save appearance:", err);
-    }
-  };
-
   return (
     <div className="space-y-6">
       {/* Theme */}
@@ -64,7 +80,7 @@ export function AppearanceTab({
           {themeOptions.map((t) => (
             <button
               key={t.id}
-              onClick={() => setTheme(t.id)}
+              onClick={() => { setTheme(t.id); persist({ theme: t.id as AppSettings["theme"] }); }}
               className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm rounded-xl transition-all duration-200 ${
                 theme === t.id
                   ? "glass text-primary border-primary/30 font-medium shadow-sm"
@@ -85,7 +101,7 @@ export function AppearanceTab({
           {accentColors.map((c) => (
             <button
               key={c.id}
-              onClick={() => setAccentColor(c.id)}
+              onClick={() => { setAccentColor(c.id); persist({ accentColor: c.id }); }}
               className={`w-10 h-10 rounded-full ${c.color} transition-all duration-200 ${
                 accentColor === c.id
                   ? "ring-2 ring-offset-2 ring-offset-surface ring-primary scale-110"
@@ -103,7 +119,7 @@ export function AppearanceTab({
         <label className="block text-sm font-medium text-text-primary mb-1">Font Family</label>
         <select
           value={fontFamily}
-          onChange={(e) => setFontFamily(e.target.value)}
+          onChange={(e) => { setFontFamily(e.target.value); persist({ fontFamily: e.target.value }); }}
           className="w-full px-3 py-2 text-sm glass-input rounded-lg text-text-primary"
         >
           <option value="system">System Default</option>
@@ -124,7 +140,7 @@ export function AppearanceTab({
           ].map((s) => (
             <button
               key={s.id}
-              onClick={() => setChatBubbleStyle(s.id)}
+              onClick={() => { setChatBubbleStyle(s.id); persist({ chatBubbleStyle: s.id }); }}
               className={`flex-1 px-3 py-2 text-left rounded-xl transition-all duration-200 ${
                 chatBubbleStyle === s.id
                   ? "glass text-primary border-primary/20"
@@ -145,7 +161,7 @@ export function AppearanceTab({
         <label className="block text-sm font-medium text-text-primary mb-1">Code Block Theme</label>
         <select
           value={codeTheme}
-          onChange={(e) => setCodeTheme(e.target.value)}
+          onChange={(e) => { setCodeTheme(e.target.value); persist({ codeTheme: e.target.value }); }}
           className="w-full px-3 py-2 text-sm glass-input rounded-lg text-text-primary"
         >
           <option value="oneDark">One Dark</option>
@@ -160,7 +176,7 @@ export function AppearanceTab({
         <input
           type="checkbox"
           checked={compactMode}
-          onChange={(e) => setCompactMode(e.target.checked)}
+          onChange={(e) => { setCompactMode(e.target.checked); persist({ compactMode: e.target.checked }); }}
           className="rounded accent-primary"
         />
         <div>
@@ -168,17 +184,6 @@ export function AppearanceTab({
           <p className="text-xs text-text-muted">Reduce spacing for more content on screen</p>
         </div>
       </label>
-
-      <button
-        onClick={handleSave}
-        className={`px-4 py-2 text-sm rounded-lg transition-colors ${
-          saved
-            ? "bg-success text-white"
-            : "bg-primary text-white hover:bg-primary-hover"
-        }`}
-      >
-        {saved ? "Saved!" : "Save Appearance"}
-      </button>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import type { PromptTemplate } from "@/types";
 import * as commands from "@/commands";
@@ -9,6 +9,43 @@ export function TemplatesTab() {
   const [editName, setEditName] = useState("");
   const [editContent, setEditContent] = useState("");
   const [editCategory, setEditCategory] = useState("general");
+
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latestRef = useRef({ editName: "", editContent: "", editCategory: "general" });
+  latestRef.current = { editName, editContent, editCategory };
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
+
+  const autosaveTemplate = useCallback(() => {
+    if (!editingId) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      const existing = templates.find((t) => t.id === editingId);
+      if (!existing) return;
+      const v = latestRef.current;
+      const vars = Array.from(
+        new Set(
+          (v.editContent.match(/\{\{(\w+)\}\}/g) || []).map((m) =>
+            m.replace(/\{\{|\}\}/g, "")
+          )
+        )
+      );
+      const updated: PromptTemplate = {
+        ...existing,
+        name: v.editName,
+        content: v.editContent,
+        category: v.editCategory,
+        variables: vars,
+        updatedAt: Date.now(),
+      };
+      await commands.savePromptTemplate(updated);
+      await loadTemplates();
+    }, 400);
+  }, [editingId, templates]);
 
   const loadTemplates = async () => {
     try {
@@ -48,33 +85,15 @@ export function TemplatesTab() {
   };
 
   const handleSelect = (t: PromptTemplate) => {
+    // Flush pending save before switching
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
     setEditingId(t.id);
     setEditName(t.name);
     setEditContent(t.content);
     setEditCategory(t.category);
-  };
-
-  const handleSave = async () => {
-    if (!editingId) return;
-    const existing = templates.find((t) => t.id === editingId);
-    if (!existing) return;
-    const vars = Array.from(
-      new Set(
-        (editContent.match(/\{\{(\w+)\}\}/g) || []).map((v) =>
-          v.replace(/\{\{|\}\}/g, "")
-        )
-      )
-    );
-    const updated: PromptTemplate = {
-      ...existing,
-      name: editName,
-      content: editContent,
-      category: editCategory,
-      variables: vars,
-      updatedAt: Date.now(),
-    };
-    await commands.savePromptTemplate(updated);
-    await loadTemplates();
   };
 
   return (
@@ -146,7 +165,7 @@ export function TemplatesTab() {
                 <input
                   type="text"
                   value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
+                  onChange={(e) => { setEditName(e.target.value); autosaveTemplate(); }}
                   className="w-full px-3 py-2 text-sm rounded-lg glass-input text-text-primary"
                 />
               </div>
@@ -154,7 +173,7 @@ export function TemplatesTab() {
                 <label className="block text-xs font-medium text-text-secondary mb-1">Category</label>
                 <select
                   value={editCategory}
-                  onChange={(e) => setEditCategory(e.target.value)}
+                  onChange={(e) => { setEditCategory(e.target.value); autosaveTemplate(); }}
                   className="w-full px-3 py-2 text-sm rounded-lg glass-input text-text-primary"
                 >
                   <option value="general">General</option>
@@ -168,7 +187,7 @@ export function TemplatesTab() {
                 <label className="block text-xs font-medium text-text-secondary mb-1">Prompt Content</label>
                 <textarea
                   value={editContent}
-                  onChange={(e) => setEditContent(e.target.value)}
+                  onChange={(e) => { setEditContent(e.target.value); autosaveTemplate(); }}
                   rows={8}
                   placeholder="Enter your system prompt here. Use {{variable}} for placeholders..."
                   className="w-full px-3 py-2 text-sm rounded-lg glass-input text-text-primary resize-none font-mono"
@@ -198,12 +217,6 @@ export function TemplatesTab() {
                   </div>
                 </div>
               )}
-              <button
-                onClick={handleSave}
-                className="px-4 py-2 text-sm rounded-lg bg-primary text-white hover:bg-primary-hover transition-colors"
-              >
-                Save Template
-              </button>
             </div>
           ) : (
             <div className="h-full flex items-center justify-center text-text-muted text-sm">
