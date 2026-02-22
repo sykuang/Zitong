@@ -82,8 +82,17 @@ export function GeneralTab({
         console.warn("Could not refresh autostart state after toggle failure:", queryErr);
         setLaunchAtLogin(!checked);
       }
-      const message = err instanceof Error ? err.message : String(err);
-      setAutoStartError(message || "Failed to update login item. Please check System Settings > General > Login Items.");
+      const fallbackMessage =
+        "Failed to update the launch-at-login setting. You can also change this in System Settings > General > Login Items.";
+      let message: string;
+      if (err instanceof Error && err.message) {
+        message = err.message;
+      } else if (typeof err === "string" && err.trim()) {
+        message = err;
+      } else {
+        message = fallbackMessage;
+      }
+      setAutoStartError(message);
     }
   };
 

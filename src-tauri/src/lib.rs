@@ -7,6 +7,8 @@ use std::path::PathBuf;
 use tauri::{Emitter, Manager};
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::TrayIconBuilder;
+
+#[cfg(desktop)]
 use tauri_plugin_autostart::ManagerExt as AutostartManagerExt;
 
 #[cfg(target_os = "macos")]
@@ -30,11 +32,15 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_clipboard_manager::init())
-        .plugin(tauri_plugin_autostart::init(
+        .plugin(tauri_plugin_clipboard_manager::init());
+
+    #[cfg(desktop)]
+    {
+        builder = builder.plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::AppleScript,
             Some(vec!["--hidden"]),
         ));
+    }
 
     // Register tauri-nspanel plugin on macOS
     #[cfg(target_os = "macos")]
@@ -341,6 +347,7 @@ async fn toggle_overlay(app: tauri::AppHandle) -> Result<(), String> {
     }
 }
 
+#[cfg(desktop)]
 #[tauri::command]
 fn set_launch_at_login(app: tauri::AppHandle, enabled: bool) -> Result<(), String> {
     let manager = app.autolaunch();
@@ -352,6 +359,7 @@ fn set_launch_at_login(app: tauri::AppHandle, enabled: bool) -> Result<(), Strin
     Ok(())
 }
 
+#[cfg(desktop)]
 #[tauri::command]
 fn get_launch_at_login(app: tauri::AppHandle) -> Result<bool, String> {
     let manager = app.autolaunch();
