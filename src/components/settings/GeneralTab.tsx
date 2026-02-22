@@ -1,7 +1,6 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import type { AppSettings } from "@/types";
 import * as commands from "@/commands";
-import { enable, disable } from "@tauri-apps/plugin-autostart";
 
 export function GeneralTab({
   settings,
@@ -11,7 +10,7 @@ export function GeneralTab({
   onRefresh: () => Promise<void>;
 }) {
   const [launchAtLogin, setLaunchAtLogin] = useState(settings?.launchAtLogin ?? false);
-  const [startAsBackground, setStartAsBackground] = useState(settings?.startAsBackground ?? false);
+  const [autoStartError, setAutoStartError] = useState<string | null>(null);
   const [sendOnEnter, setSendOnEnter] = useState(settings?.sendOnEnter ?? true);
   const [streamResponses, setStreamResponses] = useState(settings?.streamResponses ?? true);
   const [fontSize, setFontSize] = useState(settings?.fontSize || 14);
@@ -20,8 +19,8 @@ export function GeneralTab({
   );
 
   // Use a ref to always have the latest values for the debounced save
-  const latestRef = useRef({ launchAtLogin, startAsBackground, sendOnEnter, streamResponses, fontSize, defaultSystemPrompt });
-  latestRef.current = { launchAtLogin, startAsBackground, sendOnEnter, streamResponses, fontSize, defaultSystemPrompt };
+  const latestRef = useRef({ launchAtLogin, sendOnEnter, streamResponses, fontSize, defaultSystemPrompt });
+  latestRef.current = { launchAtLogin, sendOnEnter, streamResponses, fontSize, defaultSystemPrompt };
 
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -46,18 +45,54 @@ export function GeneralTab({
     [settings, onRefresh]
   );
 
+  // Sync toggle with actual autostart state on mount and when settings load
+  useEffect(() => {
+    if (!settings) return;
+    commands.getLaunchAtLogin()
+      .then((enabled) => {
+        setLaunchAtLogin(enabled);
+        if (enabled !== settings.launchAtLogin) {
+          persistSettings({ launchAtLogin: enabled });
+        }
+      })
+      .catch((err) => {
+        console.warn("Could not query autostart state:", err);
+      });
+  }, [settings, persistSettings]);
+
   const handleLaunchAtLoginToggle = async (checked: boolean) => {
+    setAutoStartError(null);
     try {
-      if (checked) {
-        await enable();
-      } else {
-        await disable();
+      await commands.setLaunchAtLogin(checked);
+      // Verify the change actually took effect
+      const actualState = await commands.getLaunchAtLogin();
+      setLaunchAtLogin(actualState);
+      persistSettings({ launchAtLogin: actualState });
+      if (actualState !== checked) {
+        setAutoStartError("Login item state didn't update. Please check System Settings > General > Login Items.");
       }
-      setLaunchAtLogin(checked);
-      persistSettings({ launchAtLogin: checked });
     } catch (err) {
       console.error("Failed to toggle launch at login:", err);
-      setLaunchAtLogin(!checked);
+      // Query actual OS state instead of blindly reverting
+      try {
+        const actualState = await commands.getLaunchAtLogin();
+        setLaunchAtLogin(actualState);
+        persistSettings({ launchAtLogin: actualState });
+      } catch (queryErr) {
+        console.warn("Could not refresh autostart state after toggle failure:", queryErr);
+        setLaunchAtLogin(!checked);
+      }
+      const fallbackMessage =
+        "Failed to update the launch-at-login setting. You can also change this in System Settings > General > Login Items.";
+      let message: string;
+      if (err instanceof Error && err.message) {
+        message = err.message;
+      } else if (typeof err === "string" && err.trim()) {
+        message = err;
+      } else {
+        message = fallbackMessage;
+      }
+      setAutoStartError(message);
     }
   };
 
@@ -80,19 +115,9 @@ export function GeneralTab({
           <div>
             <span className="text-sm text-text-primary">Launch at login</span>
             <p className="text-xs text-text-secondary">Automatically start Zitong when you log in</p>
-          </div>
-        </label>
-
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={startAsBackground}
-            onChange={handleToggle(setStartAsBackground, "startAsBackground")}
-            className="rounded accent-primary"
-          />
-          <div>
-            <span className="text-sm text-text-primary">Start in background</span>
-            <p className="text-xs text-text-secondary">Launch without showing the main window (accessible via tray icon or hotkey)</p>
+            {autoStartError && (
+              <p className="text-xs text-red-400 mt-1">{autoStartError}</p>
+            )}
           </div>
         </label>
       </div>

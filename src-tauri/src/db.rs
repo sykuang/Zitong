@@ -100,7 +100,6 @@ pub struct AppSettings {
     pub code_theme: String,
     pub compact_mode: bool,
     pub launch_at_login: bool,
-    pub start_as_background: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -154,7 +153,6 @@ impl Default for AppSettings {
             code_theme: "oneDark".to_string(),
             compact_mode: false,
             launch_at_login: false,
-            start_as_background: false,
         }
     }
 }
@@ -690,7 +688,6 @@ impl Database {
                 "code_theme" => settings.code_theme = value,
                 "compact_mode" => settings.compact_mode = value == "true",
                 "launch_at_login" => settings.launch_at_login = value == "true",
-                "start_as_background" => settings.start_as_background = value == "true",
                 _ => {}
             }
         }
@@ -715,7 +712,6 @@ impl Database {
             ("code_theme", settings.code_theme.clone()),
             ("compact_mode", settings.compact_mode.to_string()),
             ("launch_at_login", settings.launch_at_login.to_string()),
-            ("start_as_background", settings.start_as_background.to_string()),
         ];
 
         for (key, value) in pairs {

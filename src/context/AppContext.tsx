@@ -78,7 +78,6 @@ const defaultSettings: AppSettings = {
   codeTheme: "oneDark",
   compactMode: false,
   launchAtLogin: false,
-  startAsBackground: false,
 };
 
 const AppContext = createContext<AppState | null>(null);

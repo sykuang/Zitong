@@ -8,6 +8,9 @@ use tauri::{Emitter, Manager};
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::TrayIconBuilder;
 
+#[cfg(desktop)]
+use tauri_plugin_autostart::ManagerExt as AutostartManagerExt;
+
 #[cfg(target_os = "macos")]
 #[allow(clippy::unused_unit)]
 mod panel;
@@ -29,11 +32,15 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_clipboard_manager::init())
-        .plugin(tauri_plugin_autostart::init(
+        .plugin(tauri_plugin_clipboard_manager::init());
+
+    #[cfg(desktop)]
+    {
+        builder = builder.plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::AppleScript,
-            None,
+            Some(vec!["--hidden"]),
         ));
+    }
 
     // Register tauri-nspanel plugin on macOS
     #[cfg(target_os = "macos")]
@@ -47,11 +54,8 @@ pub fn run() {
             let database =
                 Database::new(&db_path).expect("Failed to initialize database");
 
-            // Read settings to check start_as_background before managing state
-            let start_as_background = database
-                .get_settings()
-                .map(|s| s.start_as_background)
-                .unwrap_or(false);
+            // Check if launched with --hidden (e.g. from login item autostart)
+            let launched_hidden = std::env::args().any(|a| a == "--hidden");
 
             app.manage(database);
 
@@ -210,8 +214,8 @@ pub fn run() {
                 }
             });
 
-            // --- Start as background: hide main window + dock icon on launch ---
-            if start_as_background {
+            // --- Start hidden when launched at login (--hidden flag) ---
+            if launched_hidden {
                 let _ = main_window.hide();
                 #[cfg(target_os = "macos")]
                 {
@@ -283,6 +287,9 @@ pub fn run() {
             // Overlay panel
             toggle_overlay,
             hide_overlay,
+            // Autostart
+            set_launch_at_login,
+            get_launch_at_login,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -338,4 +345,35 @@ async fn toggle_overlay(app: tauri::AppHandle) -> Result<(), String> {
         }
         Ok(())
     }
+}
+
+#[cfg(desktop)]
+#[tauri::command]
+fn set_launch_at_login(app: tauri::AppHandle, enabled: bool) -> Result<(), String> {
+    let manager = app.autolaunch();
+    if enabled {
+        manager.enable().map_err(|e| format!("Failed to enable autostart: {e}"))?;
+    } else {
+        manager.disable().map_err(|e| format!("Failed to disable autostart: {e}"))?;
+    }
+    Ok(())
+}
+
+#[cfg(not(desktop))]
+#[tauri::command]
+fn set_launch_at_login(_enabled: bool) -> Result<(), String> {
+    Err("Launch at login is not supported on this platform".into())
+}
+
+#[cfg(desktop)]
+#[tauri::command]
+fn get_launch_at_login(app: tauri::AppHandle) -> Result<bool, String> {
+    let manager = app.autolaunch();
+    manager.is_enabled().map_err(|e| format!("Failed to check autostart: {e}"))
+}
+
+#[cfg(not(desktop))]
+#[tauri::command]
+fn get_launch_at_login() -> Result<bool, String> {
+    Ok(false)
 }
