@@ -45,21 +45,20 @@ export function GeneralTab({
     [settings, onRefresh]
   );
 
-  // Sync toggle with actual autostart state on mount
+  // Sync toggle with actual autostart state on mount and when settings load
   useEffect(() => {
+    if (!settings) return;
     commands.getLaunchAtLogin()
       .then((enabled) => {
         setLaunchAtLogin(enabled);
-        // Sync DB if out of sync
-        if (settings && enabled !== settings.launchAtLogin) {
+        if (enabled !== settings.launchAtLogin) {
           persistSettings({ launchAtLogin: enabled });
         }
       })
       .catch((err) => {
         console.warn("Could not query autostart state:", err);
       });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [settings, persistSettings]);
 
   const handleLaunchAtLoginToggle = async (checked: boolean) => {
     setAutoStartError(null);
@@ -74,8 +73,17 @@ export function GeneralTab({
       }
     } catch (err) {
       console.error("Failed to toggle launch at login:", err);
-      setLaunchAtLogin(!checked);
-      setAutoStartError(String(err));
+      // Query actual OS state instead of blindly reverting
+      try {
+        const actualState = await commands.getLaunchAtLogin();
+        setLaunchAtLogin(actualState);
+        persistSettings({ launchAtLogin: actualState });
+      } catch (queryErr) {
+        console.warn("Could not refresh autostart state after toggle failure:", queryErr);
+        setLaunchAtLogin(!checked);
+      }
+      const message = err instanceof Error ? err.message : String(err);
+      setAutoStartError(message || "Failed to update login item. Please check System Settings > General > Login Items.");
     }
   };
 

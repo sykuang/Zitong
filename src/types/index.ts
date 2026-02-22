@@ -138,7 +138,6 @@ export interface AppSettings {
   codeTheme: string;
   compactMode: boolean;
   launchAtLogin: boolean;
-  startAsBackground: boolean;
 }
 
 // --- AI Command types ---
