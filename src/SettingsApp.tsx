@@ -54,7 +54,6 @@ const defaultSettings: AppSettings = {
   codeTheme: "oneDark",
   compactMode: false,
   launchAtLogin: false,
-  startAsBackground: false,
 };
 
 export function SettingsApp() {
