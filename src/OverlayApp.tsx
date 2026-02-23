@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { listen } from "@tauri-apps/api/event";
 import type { AiCommand } from "@/types";
 import * as commands from "@/commands";
 
@@ -39,13 +40,17 @@ export function OverlayApp() {
   const [phase, setPhase] = useState<OverlayPhase>({ kind: "idle" });
   const [followUp, setFollowUp] = useState("");
 
-  // Load AI commands on mount
-  useEffect(() => {
+  const loadAiCommands = useCallback(() => {
     commands.listAiCommands().then((cmds) => {
       setAiCommands(cmds.filter((c) => c.enabled).sort((a, b) => a.sortOrder - b.sortOrder));
     });
-    requestAnimationFrame(() => inputRef.current?.focus());
   }, []);
+
+  // Load AI commands on mount
+  useEffect(() => {
+    loadAiCommands();
+    requestAnimationFrame(() => inputRef.current?.focus());
+  }, [loadAiCommands]);
 
   // Re-focus input when the overlay window becomes visible again
   useEffect(() => {
@@ -56,14 +61,22 @@ export function OverlayApp() {
         setSelectedIndex(0);
         setPhase({ kind: "idle" });
         // Reload commands in case they changed
-        commands.listAiCommands().then((cmds) => {
-          setAiCommands(cmds.filter((c) => c.enabled).sort((a, b) => a.sortOrder - b.sortOrder));
-        });
+        loadAiCommands();
         requestAnimationFrame(() => inputRef.current?.focus());
       }
     });
     return () => { unlisten.then((fn) => fn()); };
-  }, []);
+  }, [loadAiCommands]);
+
+  // Reload commands in real-time when settings window changes them
+  useEffect(() => {
+    const unlisten = listen<{ kind: string }>("settings-changed", (event) => {
+      if (event.payload?.kind === "commands") {
+        loadAiCommands();
+      }
+    });
+    return () => { unlisten.then((fn) => fn()); };
+  }, [loadAiCommands]);
 
   const hideOverlay = useCallback(async () => {
     await invoke("hide_overlay");
