@@ -45,7 +45,6 @@ interface AppState {
   isStreaming: boolean;
   streamingContent: string;
   sidebarOpen: boolean;
-  settingsOpen: boolean;
 
   // Actions
   loadConversations: () => Promise<void>;
@@ -101,7 +100,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const abortControllerRef = React.useRef<AbortController | null>(null);
   const registeredShortcutRef = useRef<string | null>(null);
 
@@ -295,7 +293,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     []
   );
   const toggleSettings = useCallback(
-    () => setSettingsOpen((prev) => !prev),
+    () => invoke("open_settings").catch((err) => console.error("Failed to open settings:", err)),
     []
   );
   // Initial load
@@ -306,13 +304,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
     loadAssistants();
   }, [loadConversations, loadProviders, loadSettings, loadAssistants]);
 
-  // Listen for "open-settings" event from macOS system menu (Cmd+,)
+  // Listen for "settings-changed" event from the settings window
   useEffect(() => {
-    const unlisten = listen("open-settings", () => {
-      setSettingsOpen(true);
+    type SettingsChangedPayload = {
+      kind: "providers" | "settings" | "assistants" | "commands";
+    };
+    const unlisten = listen<SettingsChangedPayload>("settings-changed", async (event) => {
+      const kind = event.payload?.kind;
+      if (kind === "providers") {
+        loadProviders();
+      } else if (kind === "settings") {
+        loadSettings();
+      } else if (kind === "assistants") {
+        loadAssistants();
+      } else {
+        // Reload everything if kind is unknown
+        loadProviders();
+        loadSettings();
+        loadAssistants();
+      }
     });
     return () => { unlisten.then((fn) => fn()); };
-  }, []);
+  }, [loadProviders, loadSettings, loadAssistants]);
 
   // Listen for "open-conversation" event from overlay (answer_in_new)
   useEffect(() => {
@@ -388,7 +401,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     isStreaming,
     streamingContent,
     sidebarOpen,
-    settingsOpen,
     loadConversations,
     createConversation,
     selectConversation,

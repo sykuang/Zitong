@@ -1,14 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import type { Assistant, Provider } from "@/types";
 import * as commands from "@/commands";
 
 const ASSISTANT_ICONS = ["🤖", "🧠", "✍️", "💻", "🔍", "📝", "🎨", "📊", "🗣️", "🎯", "⚡", "🌟"];
 
-export function AssistantsTab({ providers }: { providers: Provider[] }) {
+export function AssistantsTab({ providers, onRefresh }: { providers: Provider[]; onRefresh?: () => void }) {
   const [assistants, setAssistants] = useState<Assistant[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     loadAssistants();
@@ -27,7 +26,6 @@ export function AssistantsTab({ providers }: { providers: Provider[] }) {
   const selected = assistants.find((a) => a.id === selectedId) || null;
 
   async function handleSave(updated: Assistant) {
-    setSaving(true);
     try {
       await commands.saveAssistant(updated);
       if (updated.isDefault) {
@@ -41,10 +39,9 @@ export function AssistantsTab({ providers }: { providers: Provider[] }) {
           prev.map((a) => (a.id === updated.id ? updated : a))
         );
       }
-      setTimeout(() => setSaving(false), 1200);
+      onRefresh?.();
     } catch (e) {
       console.error("Failed to save assistant:", e);
-      setSaving(false);
     }
   }
 
@@ -76,6 +73,7 @@ export function AssistantsTab({ providers }: { providers: Provider[] }) {
       setAssistants((prev) => prev.filter((a) => a.id !== id));
       if (selectedId === id)
         setSelectedId(assistants.find((a) => a.id !== id)?.id || null);
+      onRefresh?.();
     } catch (e) {
       console.error("Failed to delete assistant:", e);
     }
@@ -143,7 +141,6 @@ export function AssistantsTab({ providers }: { providers: Provider[] }) {
               assistant={selected}
               providers={providers}
               onSave={handleSave}
-              saving={saving}
             />
           ) : (
             <div className="h-full flex items-center justify-center text-text-muted text-sm">
@@ -160,12 +157,10 @@ function AssistantDetail({
   assistant,
   providers,
   onSave,
-  saving,
 }: {
   assistant: Assistant;
   providers: Provider[];
   onSave: (a: Assistant) => void;
-  saving: boolean;
 }) {
   const [name, setName] = useState(assistant.name);
   const [icon, setIcon] = useState(assistant.icon);
@@ -178,6 +173,54 @@ function AssistantDetail({
   const [isDefault, setIsDefault] = useState(assistant.isDefault);
   const [showIconPicker, setShowIconPicker] = useState(false);
 
+  const latestRef = useRef({ name, icon, description, systemPrompt, providerId, model, temperature, maxTokens, isDefault });
+  latestRef.current = { name, icon, description, systemPrompt, providerId, model, temperature, maxTokens, isDefault };
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const autosave = useCallback(
+    (overrides: Record<string, any> = {}) => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => {
+        const v = { ...latestRef.current, ...overrides };
+        onSave({
+          ...assistant,
+          name: v.name,
+          icon: v.icon,
+          description: v.description,
+          systemPrompt: v.systemPrompt,
+          providerId: v.providerId || undefined,
+          model: v.model || undefined,
+          temperature: v.temperature,
+          maxTokens: v.maxTokens,
+          isDefault: v.isDefault,
+        });
+      }, 400);
+    },
+    [assistant, onSave]
+  );
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+        // Flush pending save on unmount
+        const v = latestRef.current;
+        onSave({
+          ...assistant,
+          name: v.name,
+          icon: v.icon,
+          description: v.description,
+          systemPrompt: v.systemPrompt,
+          providerId: v.providerId || undefined,
+          model: v.model || undefined,
+          temperature: v.temperature,
+          maxTokens: v.maxTokens,
+          isDefault: v.isDefault,
+        });
+      }
+    };
+  }, []);
+
   useEffect(() => {
     setName(assistant.name);
     setIcon(assistant.icon);
@@ -189,21 +232,6 @@ function AssistantDetail({
     setMaxTokens(assistant.maxTokens ?? 4096);
     setIsDefault(assistant.isDefault);
   }, [assistant]);
-
-  function handleSubmit() {
-    onSave({
-      ...assistant,
-      name,
-      icon,
-      description,
-      systemPrompt,
-      providerId: providerId || undefined,
-      model: model || undefined,
-      temperature,
-      maxTokens,
-      isDefault,
-    });
-  }
 
   return (
     <div className="space-y-3">
@@ -222,7 +250,7 @@ function AssistantDetail({
               {ASSISTANT_ICONS.map((emoji) => (
                 <button
                   key={emoji}
-                  onClick={() => { setIcon(emoji); setShowIconPicker(false); }}
+                  onClick={() => { setIcon(emoji); setShowIconPicker(false); autosave({ icon: emoji }); }}
                   className={`w-9 h-9 flex items-center justify-center rounded-lg text-base transition-colors ${
                     icon === emoji ? "bg-primary/15 ring-1 ring-primary" : "glass-hover"
                   }`}
@@ -238,7 +266,7 @@ function AssistantDetail({
           <input
             type="text"
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => { setName(e.target.value); autosave({ name: e.target.value }); }}
             className="w-full px-3 py-2 text-sm rounded-lg glass-input text-text-primary"
           />
         </div>
@@ -250,7 +278,7 @@ function AssistantDetail({
         <input
           type="text"
           value={description}
-          onChange={(e) => setDescription(e.target.value)}
+          onChange={(e) => { setDescription(e.target.value); autosave({ description: e.target.value }); }}
           placeholder="Brief description of this assistant's purpose..."
           className="w-full px-3 py-2 text-sm rounded-lg glass-input text-text-primary"
         />
@@ -261,7 +289,7 @@ function AssistantDetail({
         <label className="block text-xs font-medium text-text-secondary mb-1">System Prompt</label>
         <textarea
           value={systemPrompt}
-          onChange={(e) => setSystemPrompt(e.target.value)}
+          onChange={(e) => { setSystemPrompt(e.target.value); autosave({ systemPrompt: e.target.value }); }}
           rows={5}
           placeholder="Instructions that define this assistant's personality and behavior..."
           className="w-full px-3 py-2 text-sm rounded-lg glass-input text-text-primary resize-none font-mono"
@@ -274,7 +302,7 @@ function AssistantDetail({
           <label className="block text-xs font-medium text-text-secondary mb-1">AI Service</label>
           <select
             value={providerId}
-            onChange={(e) => { setProviderId(e.target.value); setModel(""); }}
+            onChange={(e) => { setProviderId(e.target.value); setModel(""); autosave({ providerId: e.target.value, model: "" }); }}
             className="w-full px-3 py-2 text-sm rounded-lg glass-input text-text-primary"
           >
             <option value="">Default</option>
@@ -290,7 +318,7 @@ function AssistantDetail({
           <input
             type="text"
             value={model}
-            onChange={(e) => setModel(e.target.value)}
+            onChange={(e) => { setModel(e.target.value); autosave({ model: e.target.value }); }}
             placeholder="Default"
             className="w-full px-3 py-2 text-sm rounded-lg glass-input text-text-primary"
           />
@@ -309,7 +337,7 @@ function AssistantDetail({
             max={2}
             step={0.1}
             value={temperature}
-            onChange={(e) => setTemperature(parseFloat(e.target.value))}
+            onChange={(e) => { const v = parseFloat(e.target.value); setTemperature(v); autosave({ temperature: v }); }}
             className="w-full accent-primary"
           />
           <div className="flex justify-between text-[10px] text-text-muted mt-0.5">
@@ -322,7 +350,7 @@ function AssistantDetail({
           <input
             type="number"
             value={maxTokens}
-            onChange={(e) => setMaxTokens(parseInt(e.target.value) || 4096)}
+            onChange={(e) => { const v = parseInt(e.target.value) || 4096; setMaxTokens(v); autosave({ maxTokens: v }); }}
             min={256}
             max={128000}
             className="w-full px-3 py-2 text-sm rounded-lg glass-input text-text-primary"
@@ -330,27 +358,17 @@ function AssistantDetail({
         </div>
       </div>
 
-      {/* Default toggle + Save */}
+      {/* Default toggle */}
       <div className="flex items-center gap-3 pt-1">
         <label className="flex items-center gap-2 text-sm text-text-primary cursor-pointer">
           <input
             type="checkbox"
             checked={isDefault}
-            onChange={(e) => setIsDefault(e.target.checked)}
+            onChange={(e) => { setIsDefault(e.target.checked); autosave({ isDefault: e.target.checked }); }}
             className="w-4 h-4 rounded accent-primary"
           />
           <span className="text-xs">Set as default assistant</span>
         </label>
-        <div className="flex-1" />
-        <button
-          onClick={handleSubmit}
-          className="px-4 py-2 text-sm rounded-lg bg-primary text-white hover:bg-primary-hover transition-colors"
-        >
-          Save Assistant
-        </button>
-        {saving && (
-          <span className="text-xs text-success font-medium">Saved!</span>
-        )}
       </div>
     </div>
   );

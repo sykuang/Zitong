@@ -4,7 +4,6 @@ import { listen } from "@tauri-apps/api/event";
 import { AppProvider, useApp } from "@/context/AppContext";
 import { Sidebar } from "@/components/Sidebar";
 import { ChatArea } from "@/components/ChatArea";
-import { SettingsPanel } from "@/components/settings/SettingsPanel";
 import { PermissionGuide } from "@/components/PermissionGuide";
 import type { PermissionsStatus } from "@/types";
 
@@ -86,7 +85,6 @@ function AppShell() {
         {/* Main layout */}
         <Sidebar />
         <ChatArea />
-        <SettingsPanel />
         {DevAudit && (
           <Suspense fallback={null}>
             <DevAudit />

@@ -1,8 +1,7 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-import { useApp } from "@/context/AppContext";
-import type { Provider } from "@/types";
+import type { Provider, AppSettings } from "@/types";
 import * as commands from "@/commands";
 import { ProviderIcon } from "./ProviderIcon";
 import { Check, ExternalLink, RefreshCw } from "lucide-react";
@@ -10,11 +9,14 @@ import { Check, ExternalLink, RefreshCw } from "lucide-react";
 export function ProvidersTab({
   providers,
   onRefresh,
+  settings,
+  onRefreshSettings,
 }: {
   providers: Provider[];
   onRefresh: () => Promise<void>;
+  settings: AppSettings | null;
+  onRefreshSettings: () => Promise<void>;
 }) {
-  const { settings, loadSettings } = useApp();
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const defaultProviders: Provider[] = [
@@ -50,7 +52,7 @@ export function ProvidersTab({
     if (!settings) return;
     try {
       await commands.saveSettings({ ...settings, defaultProviderId: providerId });
-      await loadSettings();
+      await onRefreshSettings();
     } catch (err) {
       console.error("Failed to set default:", err);
     }
@@ -130,7 +132,22 @@ function ProviderDetail({
   const [enabled, setEnabled] = useState(provider.enabled);
   const [models, setModels] = useState<import("@/types").ModelInfo[]>([]);
   const [modelsLoading, setModelsLoading] = useState(false);
-  const [saved, setSaved] = useState(false);
+
+  // Auto-save refs
+  const latestRef = useRef({ name, apiKey, baseUrl, defaultModel, enabled });
+  latestRef.current = { name, apiKey, baseUrl, defaultModel, enabled };
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const autosave = useCallback(
+    (overrides: Partial<{ name: string; apiKey: string; baseUrl: string; defaultModel: string; enabled: boolean }> = {}) => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(async () => {
+        const v = { ...latestRef.current, ...overrides };
+        await onSave({ ...provider, name: v.name, apiKey: v.apiKey, baseUrl: v.baseUrl, defaultModel: v.defaultModel || undefined, enabled: v.enabled });
+      }, 400);
+    },
+    [provider, onSave]
+  );
 
   // Copilot device flow state
   const [copilotStatus, setCopilotStatus] = useState<
@@ -146,6 +163,12 @@ function ProviderDetail({
     return () => {
       cancelledRef.current = true;
       if (pollingRef.current) clearTimeout(pollingRef.current);
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+        // Flush pending save on unmount
+        const v = latestRef.current;
+        onSave({ ...provider, name: v.name, apiKey: v.apiKey, baseUrl: v.baseUrl, defaultModel: v.defaultModel || undefined, enabled: v.enabled });
+      }
     };
   }, []);
 
@@ -207,12 +230,6 @@ function ProviderDetail({
     }
   };
 
-  const handleSave = async () => {
-    await onSave({ ...provider, name, apiKey, baseUrl, defaultModel: defaultModel || undefined, enabled });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-  };
-
   const isCopilot = provider.type === "github_copilot";
   const isOllama = provider.type === "ollama";
   const needsBaseUrl = isOllama || provider.type === "openai_compatible";
@@ -255,7 +272,7 @@ function ProviderDetail({
         <input
           type="text"
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e) => { setName(e.target.value); autosave({ name: e.target.value }); }}
           className="w-full px-3 py-2 text-sm rounded-lg glass-input text-text-primary"
         />
         <p className="text-xs text-text-muted mt-0.5">Set a friendly name</p>
@@ -304,7 +321,7 @@ function ProviderDetail({
           <input
             type="text"
             value={baseUrl}
-            onChange={(e) => setBaseUrl(e.target.value)}
+            onChange={(e) => { setBaseUrl(e.target.value); autosave({ baseUrl: e.target.value }); }}
             placeholder="http://localhost:11434"
             className="w-full px-3 py-2 text-sm glass-input rounded-lg text-text-primary"
           />
@@ -316,7 +333,7 @@ function ProviderDetail({
             <input
               type="password"
               value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
+              onChange={(e) => { setApiKey(e.target.value); autosave({ apiKey: e.target.value }); }}
               placeholder="sk-..."
               className="w-full px-3 py-2 text-sm glass-input rounded-lg text-text-primary"
             />
@@ -327,7 +344,7 @@ function ProviderDetail({
               <input
                 type="text"
                 value={baseUrl}
-                onChange={(e) => setBaseUrl(e.target.value)}
+                onChange={(e) => { setBaseUrl(e.target.value); autosave({ baseUrl: e.target.value }); }}
                 className="w-full px-3 py-2 text-sm glass-input rounded-lg text-text-primary"
               />
             </div>
@@ -355,7 +372,7 @@ function ProviderDetail({
             <>
               <select
                 value={defaultModel}
-                onChange={(e) => setDefaultModel(e.target.value)}
+                onChange={(e) => { setDefaultModel(e.target.value); autosave({ defaultModel: e.target.value }); }}
                 className="w-full px-3 py-2 text-sm rounded-lg glass-input text-text-primary"
               >
                 <option value="">No default (use global default)</option>
@@ -382,23 +399,11 @@ function ProviderDetail({
         <input
           type="checkbox"
           checked={enabled}
-          onChange={(e) => setEnabled(e.target.checked)}
+          onChange={(e) => { setEnabled(e.target.checked); autosave({ enabled: e.target.checked }); }}
           className="rounded accent-primary"
         />
         <span className="text-sm text-text-primary">Enabled</span>
       </label>
-
-      {/* Save */}
-      <button
-        onClick={handleSave}
-        className={`px-4 py-2 text-sm rounded-lg transition-colors ${
-          saved
-            ? "bg-success text-white"
-            : "bg-primary text-white hover:bg-primary-hover"
-        }`}
-      >
-        {saved ? "Saved!" : "Save Changes"}
-      </button>
     </div>
   );
 }

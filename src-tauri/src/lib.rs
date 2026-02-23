@@ -4,7 +4,7 @@ mod providers;
 
 use db::Database;
 use std::path::PathBuf;
-use tauri::{Emitter, Manager};
+use tauri::Manager;
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::TrayIconBuilder;
 
@@ -109,7 +109,12 @@ pub fn run() {
                 let handle = app.handle().clone();
                 app.on_menu_event(move |_app, event| {
                     if event.id().as_ref() == "settings" {
-                        let _ = handle.emit("open-settings", ());
+                        let h = handle.clone();
+                        tauri::async_runtime::spawn(async move {
+                            if let Err(e) = open_settings(h).await {
+                                eprintln!("[menu] Failed to open settings: {}", e);
+                            }
+                        });
                     }
                 });
             }
@@ -287,6 +292,8 @@ pub fn run() {
             // Overlay panel
             toggle_overlay,
             hide_overlay,
+            // Settings window
+            open_settings,
             // Autostart
             set_launch_at_login,
             get_launch_at_login,
@@ -376,4 +383,31 @@ fn get_launch_at_login(app: tauri::AppHandle) -> Result<bool, String> {
 #[tauri::command]
 fn get_launch_at_login() -> Result<bool, String> {
     Ok(false)
+}
+
+/// Open the settings window. Creates it on demand; if it already exists, just focuses it.
+#[tauri::command]
+async fn open_settings(app: tauri::AppHandle) -> Result<(), String> {
+    // If the window already exists, make sure it is visible and focused
+    if let Some(win) = app.get_webview_window("settings") {
+        win.show().map_err(|e| e.to_string())?;
+        win.unminimize().map_err(|e| e.to_string())?;
+        win.set_focus().map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+
+    // Create a new settings window
+    use tauri::WebviewWindowBuilder;
+    let _win = WebviewWindowBuilder::new(&app, "settings", tauri::WebviewUrl::App("/settings.html".into()))
+        .title("Settings")
+        .inner_size(800.0, 600.0)
+        .min_inner_size(600.0, 400.0)
+        .center()
+        .resizable(true)
+        .decorations(true)
+        .visible(true)
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
 }

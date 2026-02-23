@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import type { AppSettings } from "@/types";
 import * as commands from "@/commands";
 
@@ -117,18 +117,40 @@ export function ShortcutsTab({
   const [globalHotkey, setGlobalHotkey] = useState(
     settings?.globalHotkey || "CommandOrControl+Shift+Space"
   );
-  const [saved, setSaved] = useState(false);
 
-  const handleSave = async () => {
-    if (!settings) return;
-    try {
-      await commands.saveSettings({ ...settings, globalHotkey });
-      await onRefresh();
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
-    } catch (err) {
-      console.error("Failed to save shortcuts:", err);
-    }
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const persistHotkey = useCallback(
+    (hotkey: string) => {
+      if (!settings) return;
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(async () => {
+        try {
+          await commands.saveSettings({ ...settings, globalHotkey: hotkey });
+          await onRefresh();
+        } catch (err) {
+          console.error("Failed to save shortcuts:", err);
+        }
+      }, 400);
+    },
+    [settings, onRefresh]
+  );
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+        // Flush pending save on unmount
+        if (settings) {
+          commands.saveSettings({ ...settings, globalHotkey }).then(() => onRefresh());
+        }
+      }
+    };
+  }, [settings, globalHotkey, onRefresh]);
+
+  const handleHotkeyChange = (v: string) => {
+    setGlobalHotkey(v);
+    persistHotkey(v);
   };
 
   const isMac = navigator.platform.includes("Mac");
@@ -148,7 +170,7 @@ export function ShortcutsTab({
         <p className="text-xs text-text-muted mb-2">
           Activate Zitong from anywhere on your system
         </p>
-        <HotkeyRecorder value={globalHotkey} onChange={setGlobalHotkey} />
+        <HotkeyRecorder value={globalHotkey} onChange={handleHotkeyChange} />
       </div>
 
       <div className="border-t border-glass-border pt-4">
@@ -188,17 +210,6 @@ export function ShortcutsTab({
           Custom shortcut editing coming soon.
         </p>
       </div>
-
-      <button
-        onClick={handleSave}
-        className={`px-4 py-2 text-sm rounded-lg transition-colors ${
-          saved
-            ? "bg-success text-white"
-            : "bg-primary text-white hover:bg-primary-hover"
-        }`}
-      >
-        {saved ? "Saved!" : "Save Shortcuts"}
-      </button>
     </div>
   );
 }

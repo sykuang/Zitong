@@ -16,7 +16,7 @@ const LANGUAGE_OPTIONS = [
   "Japanese", "Korean", "Portuguese", "Russian", "Arabic",
 ];
 
-export function CommandsTab({ providers }: { providers: Provider[] }) {
+export function CommandsTab({ providers, onRefresh }: { providers: Provider[]; onRefresh?: () => void }) {
   const [cmds, setCmds] = useState<AiCommand[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -44,6 +44,7 @@ export function CommandsTab({ providers }: { providers: Provider[] }) {
     try {
       await commands.saveAiCommand(updated);
       setCmds((prev) => prev.map((c) => (c.id === id ? updated : c)));
+      onRefresh?.();
     } catch (e) {
       console.error("Failed to toggle command:", e);
     }
@@ -55,6 +56,7 @@ export function CommandsTab({ providers }: { providers: Provider[] }) {
       await commands.saveAiCommand(updated);
       setCmds((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
       setTimeout(() => setSaving(false), 1200);
+      onRefresh?.();
     } catch (e) {
       console.error("Failed to save command:", e);
       setSaving(false);
@@ -76,6 +78,7 @@ export function CommandsTab({ providers }: { providers: Provider[] }) {
       await commands.saveAiCommand(newCmd);
       setCmds((prev) => [...prev, newCmd]);
       setSelectedId(newCmd.id);
+      onRefresh?.();
     } catch (e) {
       console.error("Failed to add command:", e);
     }
@@ -86,6 +89,7 @@ export function CommandsTab({ providers }: { providers: Provider[] }) {
       await commands.deleteAiCommand(id);
       setCmds((prev) => prev.filter((c) => c.id !== id));
       if (selectedId === id) setSelectedId(cmds.find((c) => c.id !== id)?.id || null);
+      onRefresh?.();
     } catch (e) {
       console.error("Failed to delete command:", e);
     }
