@@ -277,8 +277,15 @@ pub async fn generate_conversation_title(
         return Err("LLM returned an empty title".to_string());
     }
 
-    db.update_conversation_title(&req.conversation_id, &title)
+    // Only update if the current title is still the default to avoid
+    // overwriting user-renamed conversations.
+    let current = db
+        .get_conversation(&req.conversation_id)
         .map_err(|e| e.to_string())?;
+    if current.title.is_empty() || current.title == "New Chat" {
+        db.update_conversation_title(&req.conversation_id, &title)
+            .map_err(|e| e.to_string())?;
+    }
 
     Ok(title)
 }

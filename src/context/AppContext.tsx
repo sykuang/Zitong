@@ -251,26 +251,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
               setStreamingContent("");
               setIsStreaming(false);
 
-              // Generate a better title from the LLM after the first exchange
+              // Generate a better title from the LLM after the first exchange,
+              // but only if the title is still the default (not manually renamed).
               if (isFirstMessage) {
-                commands
-                  .generateConversationTitle({
-                    conversationId: req.conversationId,
-                    userMessage: req.content,
-                    assistantMessage: accumulated,
-                    providerId: req.providerId,
-                    model: req.model,
-                  })
-                  .then((title) => {
-                    setConversations((prev) =>
-                      prev.map((c) =>
-                        c.id === req.conversationId ? { ...c, title } : c
-                      )
+                const currentConv = conversations.find(
+                  (c) => c.id === req.conversationId
+                );
+                if (!currentConv?.title || currentConv.title === "New Chat") {
+                  commands
+                    .generateConversationTitle({
+                      conversationId: req.conversationId,
+                      userMessage: req.content,
+                      assistantMessage: accumulated,
+                      providerId: req.providerId,
+                      model: req.model,
+                    })
+                    .then((title) => {
+                      setConversations((prev) =>
+                        prev.map((c) =>
+                          c.id === req.conversationId ? { ...c, title } : c
+                        )
+                      );
+                    })
+                    .catch((err) =>
+                      console.warn("Failed to generate title:", err)
                     );
-                  })
-                  .catch((err) =>
-                    console.warn("Failed to generate title:", err)
-                  );
+                }
               }
               break;
             }

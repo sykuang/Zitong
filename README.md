@@ -108,7 +108,7 @@ Each provider supports: enable/disable toggle, live model fetching, set-as-defau
 - **macOS menu bar** integration with standard Edit/Window menus
 - **Separate settings window** — changes sync live to the main app
 
-## � Comparison with Alternatives
+## 🔍 Comparison with Alternatives
 
 | Feature | Zitong | BoltAI | ChatGPT App | Claude App | Raycast AI | Jan | Msty |
 |---|---|---|---|---|---|---|---|
@@ -127,7 +127,7 @@ Each provider supports: enable/disable toggle, live model fetching, set-as-defau
 
 **In short:** Zitong combines the overlay-driven workflow of BoltAI with cross-platform support, GitHub Copilot integration, and full open-source transparency — at no cost.
 
-## �🛠️ Tech Stack
+## 🛠️ Tech Stack
 
 | Layer | Technology |
 |---|---|
