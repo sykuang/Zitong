@@ -256,12 +256,8 @@ pub async fn generate_conversation_title(
             content: format!(
                 "User: {}\n\nAssistant: {}",
                 req.user_message,
-                // Truncate long assistant replies to save tokens
-                if req.assistant_message.len() > 300 {
-                    &req.assistant_message[..300]
-                } else {
-                    &req.assistant_message
-                }
+                // Truncate long assistant replies to save tokens (char-safe)
+                &req.assistant_message.chars().take(300).collect::<String>()
             ),
         },
     ];

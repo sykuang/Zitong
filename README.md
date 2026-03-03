@@ -132,7 +132,7 @@ Each provider supports: enable/disable toggle, live model fetching, set-as-defau
 | Layer | Technology |
 |---|---|
 | **Framework** | Tauri 2.x (Rust backend + webview frontend) |
-| **Frontend** | React 18 · TypeScript · Vite · Tailwind CSS 4 |
+| **Frontend** | React 19 · TypeScript · Vite · Tailwind CSS 4 |
 | **Database** | SQLite (via rusqlite, bundled) |
 | **HTTP/Streaming** | reqwest + Tokio async runtime |
 | **UI Libraries** | Lucide icons · React Markdown (GFM) · React Syntax Highlighter |
