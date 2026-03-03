@@ -211,6 +211,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setIsStreaming(true);
       setStreamingContent("");
 
+      const isFirstMessage = messages.length === 0;
+
       // Add user message optimistically
       const userMessage: Message = {
         id: crypto.randomUUID(),
@@ -248,6 +250,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
               setMessages((prev) => [...prev, assistantMessage]);
               setStreamingContent("");
               setIsStreaming(false);
+
+              // Generate a better title from the LLM after the first exchange
+              if (isFirstMessage) {
+                commands
+                  .generateConversationTitle({
+                    conversationId: req.conversationId,
+                    userMessage: req.content,
+                    assistantMessage: accumulated,
+                    providerId: req.providerId,
+                    model: req.model,
+                  })
+                  .then((title) => {
+                    setConversations((prev) =>
+                      prev.map((c) =>
+                        c.id === req.conversationId ? { ...c, title } : c
+                      )
+                    );
+                  })
+                  .catch((err) =>
+                    console.warn("Failed to generate title:", err)
+                  );
+              }
               break;
             }
             case "error":

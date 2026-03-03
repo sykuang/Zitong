@@ -278,6 +278,7 @@ pub fn run() {
             commands::save_ai_command,
             commands::delete_ai_command,
             commands::execute_ai_command,
+            commands::generate_conversation_title,
             commands::open_in_new_chat,
             // Assistants
             commands::list_assistants,
