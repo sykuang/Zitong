@@ -108,7 +108,26 @@ Each provider supports: enable/disable toggle, live model fetching, set-as-defau
 - **macOS menu bar** integration with standard Edit/Window menus
 - **Separate settings window** — changes sync live to the main app
 
-## 🛠️ Tech Stack
+## � Comparison with Alternatives
+
+| Feature | Zitong | BoltAI | ChatGPT App | Claude App | Raycast AI | Jan | Msty |
+|---|---|---|---|---|---|---|---|
+| **Overlay above fullscreen apps** | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| **Auto-capture selected text** | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| **Multi-provider (10+)** | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| **Local models (Ollama)** | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| **GitHub Copilot support** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Custom AI commands** | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| **Custom assistants** | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ |
+| **Prompt templates with variables** | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Cross-platform** | ✅ macOS/Win/Linux | ❌ macOS only | ✅ macOS/Win | ✅ macOS/Win | ❌ macOS only | ✅ macOS/Win/Linux | ✅ macOS/Win/Linux |
+| **Open source** | ✅ MIT | ❌ | ❌ | ❌ | ❌ | ✅ AGPL | ❌ |
+| **100% local data** | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| **Free** | ✅ | ❌ Paid | ✅ Free tier | ✅ Free tier | ❌ Paid | ✅ | ✅ Free tier |
+
+**In short:** Zitong combines the overlay-driven workflow of BoltAI with cross-platform support, GitHub Copilot integration, and full open-source transparency — at no cost.
+
+## �🛠️ Tech Stack
 
 | Layer | Technology |
 |---|---|
