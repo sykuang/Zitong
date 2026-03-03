@@ -183,6 +183,34 @@ Each provider supports: enable/disable toggle, live model fetching, set-as-defau
    **Windows/Linux:**
    The installer will be in `src-tauri/target/release/bundle/`
 
+### macOS: Bypassing Gatekeeper (Unsigned Build)
+
+Release builds are **not notarized or code-signed**, so macOS Gatekeeper will block the app on first launch. Use one of the methods below to allow it.
+
+#### Option A — Right-click → Open (easiest)
+
+1. Open **Finder** → **Applications**
+2. **Right-click** (or Control-click) **Zitong.app**
+3. Select **Open** from the context menu
+4. In the dialog that appears, click **Open**
+
+You only need to do this once; subsequent launches work normally.
+
+#### Option B — System Settings
+
+1. Try opening Zitong normally (it will be blocked)
+2. Go to **System Settings → Privacy & Security**
+3. Scroll down — you'll see *"Zitong" was blocked from use because it is not from an identified developer*
+4. Click **Open Anyway** and authenticate
+
+#### Option C — Terminal (`xattr`)
+
+```bash
+xattr -cr /Applications/Zitong.app
+```
+
+This strips the quarantine flag. You can then open the app normally.
+
 ## 🎯 Quick Start
 
 ### 1. Set up a provider

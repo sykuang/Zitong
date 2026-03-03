@@ -55,8 +55,7 @@
       "icons/icon.ico"
     ],
     "macOS": {
-      "minimumSystemVersion": "10.15",
-      "signingIdentity": "Apple Development: sykuang.tw@gmail.com (USUH758HMQ)"
+      "minimumSystemVersion": "10.15"
     },
     "windows": {
       "nsis": {
