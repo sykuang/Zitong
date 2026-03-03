@@ -55,6 +55,16 @@ export async function searchConversations(
   return invoke("search_conversations", { query });
 }
 
+export async function generateConversationTitle(req: {
+  conversationId: string;
+  userMessage: string;
+  assistantMessage: string;
+  providerId: string;
+  model: string;
+}): Promise<string> {
+  return invoke("generate_conversation_title", { req });
+}
+
 // ============================================
 // Message Commands
 // ============================================

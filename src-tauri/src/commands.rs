@@ -215,17 +215,79 @@ pub async fn send_message(
     )
     .map_err(|e| e.to_string())?;
 
-    // Auto-generate title from first user message if it's "New Chat"
-    if sort_order == 0 {
-        let title = if req.content.len() > 50 {
-            format!("{}...", &req.content[..47])
-        } else {
-            req.content.clone()
-        };
-        let _ = db.update_conversation_title(&req.conversation_id, &title);
+    Ok(())
+}
+
+/// Ask the LLM to generate a short, descriptive conversation title
+/// based on the first user message and assistant reply.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GenerateTitleRequest {
+    pub conversation_id: String,
+    pub user_message: String,
+    pub assistant_message: String,
+    pub provider_id: String,
+    pub model: String,
+}
+
+#[tauri::command]
+pub async fn generate_conversation_title(
+    db: State<'_, Database>,
+    req: GenerateTitleRequest,
+) -> Result<String, String> {
+    let provider = db
+        .get_provider(&req.provider_id)
+        .map_err(|e| format!("Provider not found: {}", e))?;
+
+    let config = ProviderConfig {
+        provider_type: provider.provider_type,
+        api_key: provider.api_key,
+        base_url: provider.base_url,
+        model: req.model,
+    };
+
+    let chat_messages = vec![
+        ChatMessage {
+            role: "system".to_string(),
+            content: "Generate a short title (max 6 words) that summarises this conversation. Output ONLY the title text — no quotes, no punctuation at the end, no explanation.".to_string(),
+        },
+        ChatMessage {
+            role: "user".to_string(),
+            content: format!(
+                "User: {}\n\nAssistant: {}",
+                req.user_message,
+                // Truncate long assistant replies to save tokens (char-safe)
+                &req.assistant_message.chars().take(300).collect::<String>()
+            ),
+        },
+    ];
+
+    let accumulated = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
+    let accumulated_clone = accumulated.clone();
+
+    providers::stream_chat(&config, &chat_messages, |event| {
+        if let StreamEvent::Delta { content } = &event {
+            accumulated_clone.lock().unwrap().push_str(content);
+        }
+    })
+    .await?;
+
+    let title = accumulated.lock().unwrap().trim().to_string();
+    if title.is_empty() {
+        return Err("LLM returned an empty title".to_string());
     }
 
-    Ok(())
+    // Only update if the current title is still the default to avoid
+    // overwriting user-renamed conversations.
+    let current = db
+        .get_conversation(&req.conversation_id)
+        .map_err(|e| e.to_string())?;
+    if current.title.is_empty() || current.title == "New Chat" {
+        db.update_conversation_title(&req.conversation_id, &title)
+            .map_err(|e| e.to_string())?;
+    }
+
+    Ok(title)
 }
 
 // ============================================

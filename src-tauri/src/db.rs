@@ -303,10 +303,72 @@ impl Database {
         // Drop the lock before calling seed methods that also acquire it
         drop(conn);
 
+        // Migrate AI command prompts to include "output only" instruction
+        self.migrate_ai_command_prompts()?;
+
         // Seed default AI commands if table is empty
         self.seed_ai_commands()?;
         // Seed default assistants if table is empty
         self.seed_assistants()?;
+
+        Ok(())
+    }
+
+    /// One-time migration: append "Output ONLY …" to default AI command prompts
+    /// so the LLM stops returning verbose explanations alongside the rewritten text.
+    fn migrate_ai_command_prompts(&self) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+
+        // Only patch prompts that still match the original seed text (user hasn't customised them)
+        let updates: Vec<(&str, &str, &str)> = vec![
+            (
+                "improve_writing",
+                "Improve the writing quality of the following text. Fix grammar, enhance clarity, and improve flow while preserving the original meaning.",
+                "Improve the writing quality of the following text. Fix grammar, enhance clarity, and improve flow while preserving the original meaning. Output ONLY the improved text — no explanations, no commentary, no bullet points describing changes.",
+            ),
+            (
+                "fix_spelling",
+                "Fix all spelling and grammar errors in the following text. Only correct errors, do not change the style or meaning.",
+                "Fix all spelling and grammar errors in the following text. Only correct errors, do not change the style or meaning. Output ONLY the corrected text — no explanations, no bullet points describing changes.",
+            ),
+            (
+                "expand_writing",
+                "Expand and elaborate on the following text with more detail, examples, and depth.",
+                "Expand and elaborate on the following text with more detail, examples, and depth. Output ONLY the expanded text — no explanations or meta-commentary.",
+            ),
+            (
+                "simplify",
+                "Simplify the following text. Use shorter sentences, simpler words, and clearer structure.",
+                "Simplify the following text. Use shorter sentences, simpler words, and clearer structure. Output ONLY the simplified text — no explanations or meta-commentary.",
+            ),
+            (
+                "rewrite_friendly",
+                "Rewrite the following text in a warm, friendly, and approachable tone.",
+                "Rewrite the following text in a warm, friendly, and approachable tone. Output ONLY the rewritten text — no explanations or meta-commentary.",
+            ),
+            (
+                "rewrite_professional",
+                "Rewrite the following text in a professional, formal tone suitable for business communication.",
+                "Rewrite the following text in a professional, formal tone suitable for business communication. Output ONLY the rewritten text — no explanations or meta-commentary.",
+            ),
+            (
+                "rewrite_persuasive",
+                "Rewrite the following text in a persuasive, compelling tone.",
+                "Rewrite the following text in a persuasive, compelling tone. Output ONLY the rewritten text — no explanations or meta-commentary.",
+            ),
+            (
+                "rewrite_instructional",
+                "Rewrite the following text as clear, step-by-step instructions.",
+                "Rewrite the following text as clear, step-by-step instructions. Output ONLY the rewritten text — no explanations or meta-commentary.",
+            ),
+        ];
+
+        for (id, old_prompt, new_prompt) in updates {
+            conn.execute(
+                "UPDATE ai_commands SET system_prompt = ?1 WHERE id = ?2 AND system_prompt = ?3",
+                params![new_prompt, id, old_prompt],
+            )?;
+        }
 
         Ok(())
     }
@@ -319,18 +381,18 @@ impl Database {
         if count > 0 { return Ok(()); }
 
         let seeds = vec![
-            ("improve_writing", "Improve writing", "✏️", "replace_selection", "Improve the writing quality of the following text. Fix grammar, enhance clarity, and improve flow while preserving the original meaning."),
-            ("expand_writing", "Expand my writing", "⚡", "insert_after", "Expand and elaborate on the following text with more detail, examples, and depth."),
-            ("fix_spelling", "Fix spelling and grammar", "⚡", "replace_selection", "Fix all spelling and grammar errors in the following text. Only correct errors, do not change the style or meaning."),
-            ("simplify", "Simplify my writing", "⚡", "insert_after", "Simplify the following text. Use shorter sentences, simpler words, and clearer structure."),
+            ("improve_writing", "Improve writing", "✏️", "replace_selection", "Improve the writing quality of the following text. Fix grammar, enhance clarity, and improve flow while preserving the original meaning. Output ONLY the improved text — no explanations, no commentary, no bullet points describing changes."),
+            ("expand_writing", "Expand my writing", "⚡", "insert_after", "Expand and elaborate on the following text with more detail, examples, and depth. Output ONLY the expanded text — no explanations or meta-commentary."),
+            ("fix_spelling", "Fix spelling and grammar", "⚡", "replace_selection", "Fix all spelling and grammar errors in the following text. Only correct errors, do not change the style or meaning. Output ONLY the corrected text — no explanations, no bullet points describing changes."),
+            ("simplify", "Simplify my writing", "⚡", "insert_after", "Simplify the following text. Use shorter sentences, simpler words, and clearer structure. Output ONLY the simplified text — no explanations or meta-commentary."),
             ("explain", "Explain this", "❓", "answer_in_new", "Explain the following text or concept in clear, simple terms."),
             ("key_takeaways", "List key takeaways", "⚡", "answer_in_new", "List the key takeaways and main points from the following text."),
             ("summarize", "Summarize", "⚡", "answer_in_new", "Provide a concise summary of the following text."),
             ("summarize_long", "Summarize (long)", "⚡", "answer_in_new", "Provide a detailed, comprehensive summary of the following text."),
-            ("rewrite_friendly", "Rewrite in friendly tone", "⚡", "insert_after", "Rewrite the following text in a warm, friendly, and approachable tone."),
-            ("rewrite_professional", "Rewrite in professional tone", "⚡", "insert_after", "Rewrite the following text in a professional, formal tone suitable for business communication."),
-            ("rewrite_persuasive", "Rewrite in persuasive tone", "⚡", "insert_after", "Rewrite the following text in a persuasive, compelling tone."),
-            ("rewrite_instructional", "Rewrite in instructional tone", "⚡", "insert_after", "Rewrite the following text as clear, step-by-step instructions."),
+            ("rewrite_friendly", "Rewrite in friendly tone", "⚡", "insert_after", "Rewrite the following text in a warm, friendly, and approachable tone. Output ONLY the rewritten text — no explanations or meta-commentary."),
+            ("rewrite_professional", "Rewrite in professional tone", "⚡", "insert_after", "Rewrite the following text in a professional, formal tone suitable for business communication. Output ONLY the rewritten text — no explanations or meta-commentary."),
+            ("rewrite_persuasive", "Rewrite in persuasive tone", "⚡", "insert_after", "Rewrite the following text in a persuasive, compelling tone. Output ONLY the rewritten text — no explanations or meta-commentary."),
+            ("rewrite_instructional", "Rewrite in instructional tone", "⚡", "insert_after", "Rewrite the following text as clear, step-by-step instructions. Output ONLY the rewritten text — no explanations or meta-commentary."),
         ];
 
         for (i, (id, label, icon, behavior, prompt)) in seeds.iter().enumerate() {
