@@ -221,7 +221,8 @@ pub fn run() {
 
             // --- Start hidden when launched at login (--hidden flag) ---
             if launched_hidden {
-                let _ = main_window.hide();
+                // Window is already invisible (visible: false in config).
+                // Switch to Accessory mode so the Dock icon is also hidden.
                 #[cfg(target_os = "macos")]
                 {
                     use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy};
@@ -231,6 +232,9 @@ pub fn run() {
                         ns_app.setActivationPolicy(NSApplicationActivationPolicy::Accessory);
                     }
                 }
+            } else {
+                // Normal launch — show the main window
+                let _ = main_window.show();
             }
 
             Ok(())
@@ -298,8 +302,37 @@ pub fn run() {
             set_launch_at_login,
             get_launch_at_login,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run({
+            // Skip the first Reopen event — macOS fires one at launch which
+            // would undo the --hidden flag.
+            let first_reopen = std::sync::atomic::AtomicBool::new(true);
+            move |app, event| {
+                // Handle macOS Dock icon click (reopen)
+                #[cfg(target_os = "macos")]
+                if let tauri::RunEvent::Reopen { has_visible_windows, .. } = &event {
+                    if first_reopen.swap(false, std::sync::atomic::Ordering::Relaxed) {
+                        return;
+                    }
+                    if !has_visible_windows {
+                        if let Some(win) = app.get_webview_window("main") {
+                            // Restore Dock icon and show window
+                            {
+                                use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy};
+                                use objc2::MainThreadMarker;
+                                if let Some(mtm) = MainThreadMarker::new() {
+                                    let ns_app = NSApplication::sharedApplication(mtm);
+                                    ns_app.setActivationPolicy(NSApplicationActivationPolicy::Regular);
+                                }
+                            }
+                            let _ = win.show();
+                            let _ = win.set_focus();
+                        }
+                    }
+                }
+            }
+        });
 }
 
 /// Toggle the overlay command palette panel.
