@@ -610,7 +610,16 @@ pub fn open_in_new_chat(
     );
 
     // Hide the overlay panel first so it doesn't block the main window
-    let _ = crate::panel::hide_overlay_panel(&app);
+    #[cfg(target_os = "macos")]
+    {
+        let _ = crate::panel::hide_overlay_panel(&app);
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        if let Some(win) = app.get_webview_window("overlay") {
+            let _ = win.hide();
+        }
+    }
 
     // Show the main window and activate the app so it comes to front
     if let Some(win) = app.get_webview_window("main") {
