@@ -6445,8 +6445,9 @@ dependencies = [
 
 [[package]]
 name = "zitong"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
+ "arboard",
  "base64 0.22.1",
  "chrono",
  "core-foundation 0.10.1",
@@ -6473,6 +6474,7 @@ dependencies = [
  "thiserror 1.0.69",
  "tokio",
  "uuid",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]

@@ -64,7 +64,7 @@ export function ProvidersTab({
       <div className="w-52 border-r border-glass-border overflow-y-auto">
         {allProviders.map((provider) => {
           const isDefault = settings?.defaultProviderId === provider.id;
-          const isConfigured = !!provider.apiKey || provider.type === "ollama";
+          const isConfigured = !!provider.apiKey || (provider.type === "ollama" && savedById.has(provider.id));
           return (
             <button
               key={provider.id}

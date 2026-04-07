@@ -1,6 +1,5 @@
-//! Clipboard helpers — platform-specific implementations.
-//! On macOS: direct NSPasteboard access and CGEvent-based ⌘C simulation.
-//! On other platforms: stubs that return appropriate errors/defaults.
+//! Clipboard helpers — cross-platform read/write via arboard,
+//! plus macOS-specific CGEvent ⌘C simulation and accessibility checks.
 
 /// Combined permissions check — returns detailed status for the frontend.
 #[derive(serde::Serialize)]
@@ -15,13 +14,32 @@ pub struct PermissionsStatus {
 }
 
 // ============================================================================
+// Cross-platform clipboard read/write via arboard
+// ============================================================================
+
+/// Read plain text from the system clipboard.
+#[tauri::command]
+pub fn read_clipboard_text() -> Result<String, String> {
+    let mut clipboard = arboard::Clipboard::new().map_err(|e| format!("Clipboard init failed: {e}"))?;
+    let text = clipboard.get_text().map_err(|e| format!("Clipboard read failed: {e}"))?;
+    Ok(text)
+}
+
+/// Write plain text to the system clipboard.
+#[tauri::command]
+pub fn write_clipboard_text(text: String) -> Result<(), String> {
+    let mut clipboard = arboard::Clipboard::new().map_err(|e| format!("Clipboard init failed: {e}"))?;
+    clipboard.set_text(text).map_err(|e| format!("Clipboard write failed: {e}"))?;
+    Ok(())
+}
+
+// ============================================================================
 // macOS implementation
 // ============================================================================
 #[cfg(target_os = "macos")]
 mod macos {
     use super::PermissionsStatus;
     use objc2_app_kit::NSPasteboard;
-    use objc2_foundation::NSString;
 
     // FFI binding for macOS Accessibility API
     extern "C" {
@@ -50,39 +68,6 @@ mod macos {
     #[tauri::command]
     pub fn check_accessibility(prompt: bool) -> bool {
         check_accessibility_permission(prompt)
-    }
-
-    /// Read plain text directly from the system clipboard (NSPasteboard).
-    #[tauri::command]
-    pub fn read_clipboard_text() -> Result<String, String> {
-        let pb = NSPasteboard::generalPasteboard();
-        let pasteboard_type = NSString::from_str("public.utf8-plain-text");
-        match pb.stringForType(&pasteboard_type) {
-            Some(s) => {
-                let text = s.to_string();
-                eprintln!("[clipboard] read_clipboard_text: {} chars", text.len());
-                Ok(text)
-            }
-            None => {
-                eprintln!("[clipboard] read_clipboard_text: no text in clipboard");
-                Err("No text in clipboard".to_string())
-            }
-        }
-    }
-
-    /// Write plain text to the system clipboard (NSPasteboard).
-    #[tauri::command]
-    pub fn write_clipboard_text(text: String) -> Result<(), String> {
-        let pb = NSPasteboard::generalPasteboard();
-        pb.clearContents();
-        let pasteboard_type = NSString::from_str("public.utf8-plain-text");
-        let ns_string = NSString::from_str(&text);
-        let ok = pb.setString_forType(&ns_string, &pasteboard_type);
-        if ok {
-            Ok(())
-        } else {
-            Err("Failed to write text to clipboard".to_string())
-        }
     }
 
     /// Simulate ⌘C by sending a keystroke via CGEvent.
@@ -249,35 +234,103 @@ mod macos {
 }
 
 // ============================================================================
-// Non-macOS stub implementations
+// Windows implementation
 // ============================================================================
-#[cfg(not(target_os = "macos"))]
-mod stubs {
+#[cfg(target_os = "windows")]
+mod windows_impl {
     use super::PermissionsStatus;
 
     #[tauri::command]
     pub fn check_accessibility(_prompt: bool) -> bool {
-        // No special accessibility permissions needed on Windows/Linux
+        // No special accessibility permissions needed on Windows
         true
     }
 
     #[tauri::command]
-    pub fn read_clipboard_text() -> Result<String, String> {
-        // Use tauri-plugin-clipboard-manager instead on non-macOS
-        Err("Use clipboard plugin on this platform".to_string())
-    }
-
-    #[tauri::command]
-    pub fn write_clipboard_text(_text: String) -> Result<(), String> {
-        // Use tauri-plugin-clipboard-manager instead on non-macOS
-        Err("Use clipboard plugin on this platform".to_string())
-    }
-
-    #[tauri::command]
     pub async fn simulate_copy() -> Result<(), String> {
-        // Simulate copy not implemented on non-macOS
-        Err("Simulate copy not supported on this platform".to_string())
+        tokio::task::spawn_blocking(simulate_copy_sync)
+            .await
+            .map_err(|e| format!("spawn_blocking failed: {}", e))?
     }
+
+    /// Simulate Ctrl+C on Windows using SendInput.
+    /// First releases any held modifier keys (Shift, Alt, Win) so that the
+    /// target app receives a clean Ctrl+C instead of e.g. Ctrl+Shift+C
+    /// (which opens DevTools in browsers).
+    #[cfg(target_os = "windows")]
+    pub fn simulate_copy_sync() -> Result<(), String> {
+        use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
+            GetAsyncKeyState, SendInput, INPUT, INPUT_KEYBOARD, KEYBDINPUT,
+            KEYEVENTF_KEYUP, VK_CONTROL, VK_C, VK_SHIFT, VK_LSHIFT, VK_RSHIFT,
+            VK_MENU, VK_LMENU, VK_RMENU, VK_LWIN, VK_RWIN,
+        };
+
+        std::thread::sleep(std::time::Duration::from_millis(80));
+
+        unsafe {
+            // Check which modifier keys are currently held down
+            let modifiers_to_release: &[u16] = &[
+                VK_SHIFT, VK_LSHIFT, VK_RSHIFT,
+                VK_MENU, VK_LMENU, VK_RMENU,
+                VK_LWIN, VK_RWIN,
+            ];
+
+            let mut release_inputs: Vec<INPUT> = Vec::new();
+
+            for &vk in modifiers_to_release {
+                if GetAsyncKeyState(vk as i32) < 0 {
+                    let mut release: INPUT = std::mem::zeroed();
+                    release.r#type = INPUT_KEYBOARD;
+                    release.Anonymous.ki = KEYBDINPUT {
+                        wVk: vk, wScan: 0, dwFlags: KEYEVENTF_KEYUP, time: 0, dwExtraInfo: 0,
+                    };
+                    release_inputs.push(release);
+                }
+            }
+
+            // Release held modifiers
+            if !release_inputs.is_empty() {
+                SendInput(
+                    release_inputs.len() as u32,
+                    release_inputs.as_ptr(),
+                    std::mem::size_of::<INPUT>() as i32,
+                );
+                std::thread::sleep(std::time::Duration::from_millis(30));
+            }
+
+            // Send Ctrl+C
+            let mut inputs: [INPUT; 4] = std::mem::zeroed();
+
+            inputs[0].r#type = INPUT_KEYBOARD;
+            inputs[0].Anonymous.ki = KEYBDINPUT {
+                wVk: VK_CONTROL, wScan: 0, dwFlags: 0, time: 0, dwExtraInfo: 0,
+            };
+
+            inputs[1].r#type = INPUT_KEYBOARD;
+            inputs[1].Anonymous.ki = KEYBDINPUT {
+                wVk: VK_C, wScan: 0, dwFlags: 0, time: 0, dwExtraInfo: 0,
+            };
+
+            inputs[2].r#type = INPUT_KEYBOARD;
+            inputs[2].Anonymous.ki = KEYBDINPUT {
+                wVk: VK_C, wScan: 0, dwFlags: KEYEVENTF_KEYUP, time: 0, dwExtraInfo: 0,
+            };
+
+            inputs[3].r#type = INPUT_KEYBOARD;
+            inputs[3].Anonymous.ki = KEYBDINPUT {
+                wVk: VK_CONTROL, wScan: 0, dwFlags: KEYEVENTF_KEYUP, time: 0, dwExtraInfo: 0,
+            };
+
+            let sent = SendInput(4, inputs.as_ptr(), std::mem::size_of::<INPUT>() as i32);
+            if sent != 4 {
+                return Err(format!("SendInput returned {}, expected 4", sent));
+            }
+        }
+
+        std::thread::sleep(std::time::Duration::from_millis(200));
+        Ok(())
+    }
+
 
     #[tauri::command]
     pub fn check_permissions() -> PermissionsStatus {
@@ -326,5 +379,5 @@ mod stubs {
 #[cfg(target_os = "macos")]
 pub use macos::*;
 
-#[cfg(not(target_os = "macos"))]
-pub use stubs::*;
+#[cfg(target_os = "windows")]
+pub use windows_impl::*;

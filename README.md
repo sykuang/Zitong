@@ -2,7 +2,7 @@
 
 **Your AI, one shortcut away — even above fullscreen apps.**
 
-Zitong is a native desktop AI chat client for macOS, Windows, and Linux. Press a hotkey, select any text in any app, and let AI transform it instantly — no context switching required.
+Zitong is a native desktop AI chat client for macOS and Windows. Press a hotkey, select any text in any app, and let AI transform it instantly — no context switching required.
 
 Lightweight, private (all data stored locally), and works with 10+ AI providers.
 
@@ -35,7 +35,7 @@ The headline feature. A Spotlight-style panel you can invoke from anywhere:
    - **Shorter / Longer** — quick refinements without leaving the overlay
    - **Follow-up** — type a custom instruction to iterate on the result
 
-> Works above fullscreen apps on macOS via NSPanel. On Windows/Linux, the overlay uses a standard always-on-top window.
+> Works above fullscreen apps on macOS via NSPanel. On Windows, the overlay uses a standard always-on-top window.
 
 ### 💬 Full Chat Interface
 
@@ -120,7 +120,7 @@ Each provider supports: enable/disable toggle, live model fetching, set-as-defau
 | **Custom AI commands** | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
 | **Custom assistants** | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ |
 | **Prompt templates with variables** | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| **Cross-platform** | ✅ macOS/Win/Linux | ❌ macOS only | ✅ macOS/Win | ✅ macOS/Win | ❌ macOS only | ✅ macOS/Win/Linux | ✅ macOS/Win/Linux |
+| **Cross-platform** | ✅ macOS/Win | ❌ macOS only | ✅ macOS/Win | ✅ macOS/Win | ❌ macOS only | ✅ macOS/Win | ✅ macOS/Win |
 | **Open source** | ✅ MIT | ❌ | ❌ | ❌ | ❌ | ✅ AGPL | ❌ |
 | **100% local data** | ✅ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ |
 | **Free** | ✅ | ❌ Paid | ✅ Free tier | ✅ Free tier | ❌ Paid | ✅ | ✅ Free tier |
@@ -143,7 +143,7 @@ Each provider supports: enable/disable toggle, live model fetching, set-as-defau
 - **Node.js** (v20.19+ or v22.12+)
 - **npm** (package manager, bundled with Node.js)
 - **Rust** (latest stable)
-- **Operating System**: macOS 10.15+, Windows 10+, or Linux
+- **Operating System**: macOS 10.15+ or Windows 10+
 
 ## 🚀 Installation
 
@@ -180,7 +180,7 @@ Each provider supports: enable/disable toggle, live model fetching, set-as-defau
    ```
    This will mount the DMG and copy the app to your Applications folder.
 
-   **Windows/Linux:**
+   **Windows:**
    The installer will be in `src-tauri/target/release/bundle/`
 
 ### macOS: Bypassing Gatekeeper (Unsigned Build)
@@ -234,7 +234,7 @@ Select text anywhere on your screen → press `⌘⇧Space` → pick a command (
 
 ## ⌨️ Keyboard Shortcuts
 
-| Action | macOS | Windows/Linux |
+| Action | macOS | Windows |
 |---|---|---|
 | **Overlay Command Palette** | `⌘⇧Space` (customizable) | `Ctrl+Shift+Space` |
 | New Chat | `⌘N` | `Ctrl+N` |
@@ -252,7 +252,6 @@ Zitong stores all data locally in a SQLite database:
 
 - **macOS**: `~/Library/Application Support/com.primattek.zitong/zitong.db`
 - **Windows**: `%APPDATA%\com.primattek.zitong\zitong.db`
-- **Linux**: `~/.local/share/com.primattek.zitong/zitong.db`
 
 The database includes:
 - Conversations and messages

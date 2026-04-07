@@ -306,8 +306,10 @@ impl Database {
         // Migrate AI command prompts to include "output only" instruction
         self.migrate_ai_command_prompts()?;
 
-        // Seed default AI commands if table is empty
+        // Seed default AI commands if table is empty (new installs)
         self.seed_ai_commands()?;
+        // Add translate commands for existing users who don't have them yet
+        self.seed_translate_commands()?;
         // Seed default assistants if table is empty
         self.seed_assistants()?;
 
@@ -373,6 +375,37 @@ impl Database {
         Ok(())
     }
 
+    /// Add translate commands for existing users who already have ai_commands.
+    fn seed_translate_commands(&self) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+
+        let translate_cmds = vec![
+            ("translate_english", "Translate to English", "🇺🇸", "Translate the following text into English. Output ONLY the translated text — no explanations, no original text, no commentary."),
+            ("translate_chinese_simplified", "Translate to Simplified Chinese", "🇨🇳", "Translate the following text into Simplified Chinese (简体中文). Output ONLY the translated text — no explanations, no original text, no commentary."),
+            ("translate_chinese_traditional", "Translate to Traditional Chinese", "🇹🇼", "Translate the following text into Traditional Chinese (繁體中文). Output ONLY the translated text — no explanations, no original text, no commentary."),
+            ("translate_japanese", "Translate to Japanese", "🇯🇵", "Translate the following text into Japanese (日本語). Output ONLY the translated text — no explanations, no original text, no commentary."),
+            ("translate_korean", "Translate to Korean", "🇰🇷", "Translate the following text into Korean (한국어). Output ONLY the translated text — no explanations, no original text, no commentary."),
+            ("translate_spanish", "Translate to Spanish", "🇪🇸", "Translate the following text into Spanish (Español). Output ONLY the translated text — no explanations, no original text, no commentary."),
+            ("translate_french", "Translate to French", "🇫🇷", "Translate the following text into French (Français). Output ONLY the translated text — no explanations, no original text, no commentary."),
+            ("translate_german", "Translate to German", "🇩🇪", "Translate the following text into German (Deutsch). Output ONLY the translated text — no explanations, no original text, no commentary."),
+            ("translate_portuguese", "Translate to Portuguese", "🇧🇷", "Translate the following text into Portuguese (Português). Output ONLY the translated text — no explanations, no original text, no commentary."),
+        ];
+
+        // Get max sort_order so we append after existing commands
+        let max_order: i64 = conn
+            .query_row("SELECT COALESCE(MAX(sort_order), -1) FROM ai_commands", [], |row| row.get(0))
+            .unwrap_or(-1);
+
+        for (i, (id, label, icon, prompt)) in translate_cmds.iter().enumerate() {
+            conn.execute(
+                "INSERT OR IGNORE INTO ai_commands (id, label, icon, behavior, system_prompt, sort_order) VALUES (?1, ?2, ?3, 'replace_selection', ?4, ?5)",
+                params![id, label, icon, prompt, max_order + 1 + i as i64],
+            )?;
+        }
+
+        Ok(())
+    }
+
     fn seed_ai_commands(&self) -> Result<()> {
         let conn = self.conn.lock().unwrap();
         let count: i64 = conn.query_row(
@@ -393,6 +426,15 @@ impl Database {
             ("rewrite_professional", "Rewrite in professional tone", "⚡", "insert_after", "Rewrite the following text in a professional, formal tone suitable for business communication. Output ONLY the rewritten text — no explanations or meta-commentary."),
             ("rewrite_persuasive", "Rewrite in persuasive tone", "⚡", "insert_after", "Rewrite the following text in a persuasive, compelling tone. Output ONLY the rewritten text — no explanations or meta-commentary."),
             ("rewrite_instructional", "Rewrite in instructional tone", "⚡", "insert_after", "Rewrite the following text as clear, step-by-step instructions. Output ONLY the rewritten text — no explanations or meta-commentary."),
+            ("translate_english", "Translate to English", "🇺🇸", "replace_selection", "Translate the following text into English. Output ONLY the translated text — no explanations, no original text, no commentary."),
+            ("translate_chinese_simplified", "Translate to Simplified Chinese", "🇨🇳", "replace_selection", "Translate the following text into Simplified Chinese (简体中文). Output ONLY the translated text — no explanations, no original text, no commentary."),
+            ("translate_chinese_traditional", "Translate to Traditional Chinese", "🇹🇼", "replace_selection", "Translate the following text into Traditional Chinese (繁體中文). Output ONLY the translated text — no explanations, no original text, no commentary."),
+            ("translate_japanese", "Translate to Japanese", "🇯🇵", "replace_selection", "Translate the following text into Japanese (日本語). Output ONLY the translated text — no explanations, no original text, no commentary."),
+            ("translate_korean", "Translate to Korean", "🇰🇷", "replace_selection", "Translate the following text into Korean (한국어). Output ONLY the translated text — no explanations, no original text, no commentary."),
+            ("translate_spanish", "Translate to Spanish", "🇪🇸", "replace_selection", "Translate the following text into Spanish (Español). Output ONLY the translated text — no explanations, no original text, no commentary."),
+            ("translate_french", "Translate to French", "🇫🇷", "replace_selection", "Translate the following text into French (Français). Output ONLY the translated text — no explanations, no original text, no commentary."),
+            ("translate_german", "Translate to German", "🇩🇪", "replace_selection", "Translate the following text into German (Deutsch). Output ONLY the translated text — no explanations, no original text, no commentary."),
+            ("translate_portuguese", "Translate to Portuguese", "🇧🇷", "replace_selection", "Translate the following text into Portuguese (Português). Output ONLY the translated text — no explanations, no original text, no commentary."),
         ];
 
         for (i, (id, label, icon, behavior, prompt)) in seeds.iter().enumerate() {
@@ -784,6 +826,65 @@ impl Database {
         }
 
         Ok(())
+    }
+
+    // ============================================
+    // Window State (position & size persistence)
+    // ============================================
+
+    pub fn save_window_state(&self, x: i32, y: i32, width: u32, height: u32) -> Result<()> {
+        // Skip saving when the window is minimized/hidden — Windows reports
+        // position as (-32000, -32000) with a tiny size in that state.
+        if x <= -30000 || y <= -30000 || width < 100 || height < 100 {
+            return Ok(());
+        }
+        let conn = self.conn.lock().unwrap();
+        let pairs = [
+            ("window_x", x.to_string()),
+            ("window_y", y.to_string()),
+            ("window_width", width.to_string()),
+            ("window_height", height.to_string()),
+        ];
+        for (key, value) in &pairs {
+            conn.execute(
+                "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
+                params![key, value],
+            )?;
+        }
+        Ok(())
+    }
+
+    pub fn get_window_state(&self) -> Option<(i32, i32, u32, u32)> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn
+            .prepare("SELECT key, value FROM settings WHERE key IN ('window_x', 'window_y', 'window_width', 'window_height')")
+            .ok()?;
+        let rows: Vec<(String, String)> = stmt
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+            .ok()?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        let mut x = None;
+        let mut y = None;
+        let mut w = None;
+        let mut h = None;
+        for (key, value) in &rows {
+            match key.as_str() {
+                "window_x" => x = value.parse().ok(),
+                "window_y" => y = value.parse().ok(),
+                "window_width" => w = value.parse().ok(),
+                "window_height" => h = value.parse().ok(),
+                _ => {}
+            }
+        }
+
+        let (x, y, w, h) = (x?, y?, w?, h?);
+        // Reject invalid values (minimized/hidden window on Windows)
+        if x <= -30000 || y <= -30000 || w < 100 || h < 100 {
+            return None;
+        }
+        Some((x, y, w, h))
     }
 
     // ============================================
