@@ -166,7 +166,7 @@ pub async fn send_message(
     // Get provider config from DB
     let provider = db
         .get_provider(&req.provider_id)
-        .map_err(|e| format!("Provider not found: {}", e))?;
+        .map_err(|_| "No AI provider configured. Please go to Settings → Providers to add one.".to_string())?;
 
     let config = ProviderConfig {
         provider_type: provider.provider_type,
@@ -237,7 +237,7 @@ pub async fn generate_conversation_title(
 ) -> Result<String, String> {
     let provider = db
         .get_provider(&req.provider_id)
-        .map_err(|e| format!("Provider not found: {}", e))?;
+        .map_err(|_| "No AI provider configured. Please go to Settings → Providers to add one.".to_string())?;
 
     let config = ProviderConfig {
         provider_type: provider.provider_type,
@@ -501,7 +501,7 @@ pub async fn execute_ai_command(
         .unwrap_or(settings.default_provider_id);
     let provider = db
         .get_provider(&provider_id)
-        .map_err(|e| format!("Provider not found: {}", e))?;
+        .map_err(|_| "No AI provider configured. Please go to Settings → Providers to add one.".to_string())?;
 
     // Fallback chain: command-level model → provider default_model → global default_model
     let model = req

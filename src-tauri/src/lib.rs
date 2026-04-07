@@ -182,6 +182,10 @@ pub fn run() {
                                     if win.is_visible().unwrap_or(false) {
                                         let _ = win.hide();
                                     } else {
+                                        // Simulate Ctrl+C to copy selected text before showing
+                                        if let Err(e) = clipboard::simulate_copy_sync() {
+                                            eprintln!("[tray] simulate_copy_sync failed: {}", e);
+                                        }
                                         let _ = win.center();
                                         let _ = win.show();
                                         let _ = win.set_focus();
@@ -190,6 +194,13 @@ pub fn run() {
                             }
                         }
                         "quit" => {
+                            // Save window position before quitting
+                            if let Some(win) = app.get_webview_window("main") {
+                                let db: tauri::State<'_, Database> = app.state();
+                                if let (Ok(pos), Ok(size)) = (win.outer_position(), win.outer_size()) {
+                                    let _ = db.save_window_state(pos.x, pos.y, size.width, size.height);
+                                }
+                            }
                             app.exit(0);
                         }
                         _ => {}
@@ -197,24 +208,52 @@ pub fn run() {
                 })
                 .build(app)?;
 
-            // --- Hide main window on close instead of quitting (run in background) ---
+            // --- Restore saved window position & size ---
             let main_window = app.get_webview_window("main").expect("no main window");
+            {
+                let db: tauri::State<'_, Database> = app.state();
+                if let Some((x, y, w, h)) = db.get_window_state() {
+                    eprintln!("[window] restoring position: x={}, y={}, w={}, h={}", x, y, w, h);
+                    let _ = main_window.set_position(tauri::PhysicalPosition::new(x, y));
+                    let _ = main_window.set_size(tauri::PhysicalSize::new(w, h));
+                } else {
+                    eprintln!("[window] no saved position found, using default");
+                }
+            }
+
+            // --- Hide main window on close instead of quitting (run in background) ---
+            // Also save window position/size on move/resize (trailing debounce).
+            let app_handle = app.handle().clone();
             main_window.on_window_event({
                 let win = main_window.clone();
                 move |event| {
-                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                        api.prevent_close();
-                        let _ = win.hide();
-                        // Hide Dock icon when running in background
-                        #[cfg(target_os = "macos")]
-                        {
-                            use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy};
-                            use objc2::MainThreadMarker;
-                            if let Some(mtm) = MainThreadMarker::new() {
-                                let ns_app = NSApplication::sharedApplication(mtm);
-                                ns_app.setActivationPolicy(NSApplicationActivationPolicy::Accessory);
+                    match event {
+                        tauri::WindowEvent::CloseRequested { api, .. } => {
+                            // Save final position before hiding
+                            let db: tauri::State<'_, Database> = app_handle.state();
+                            if let (Ok(pos), Ok(size)) = (win.outer_position(), win.outer_size()) {
+                                let _ = db.save_window_state(pos.x, pos.y, size.width, size.height);
+                            }
+                            api.prevent_close();
+                            let _ = win.hide();
+                            #[cfg(target_os = "macos")]
+                            {
+                                use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy};
+                                use objc2::MainThreadMarker;
+                                if let Some(mtm) = MainThreadMarker::new() {
+                                    let ns_app = NSApplication::sharedApplication(mtm);
+                                    ns_app.setActivationPolicy(NSApplicationActivationPolicy::Accessory);
+                                }
                             }
                         }
+                        tauri::WindowEvent::Moved(_) | tauri::WindowEvent::Resized(_) => {
+                            let db: tauri::State<'_, Database> = app_handle.state();
+                            if let (Ok(pos), Ok(size)) = (win.outer_position(), win.outer_size()) {
+                                eprintln!("[window] saving position: x={}, y={}, w={}, h={}", pos.x, pos.y, size.width, size.height);
+                                let _ = db.save_window_state(pos.x, pos.y, size.width, size.height);
+                            }
+                        }
+                        _ => {}
                     }
                 }
             });
@@ -379,6 +418,10 @@ async fn toggle_overlay(app: tauri::AppHandle) -> Result<(), String> {
             if win.is_visible().unwrap_or(false) {
                 win.hide().map_err(|e| e.to_string())?;
             } else {
+                // Simulate Ctrl+C to copy selected text before showing the overlay
+                if let Err(e) = clipboard::simulate_copy_sync() {
+                    eprintln!("[toggle_overlay] simulate_copy_sync failed: {}", e);
+                }
                 win.center().map_err(|e| e.to_string())?;
                 win.show().map_err(|e| e.to_string())?;
                 win.set_focus().map_err(|e| e.to_string())?;

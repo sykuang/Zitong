@@ -163,6 +163,15 @@
 }
 
 /* ============================================
+   Native select / option styling (Windows fix)
+   ============================================ */
+
+select, option {
+  background-color: var(--color-surface);
+  color: var(--color-text-primary);
+}
+
+/* ============================================
    Scrollbar
    ============================================ */
 
