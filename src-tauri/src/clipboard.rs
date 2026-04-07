@@ -253,12 +253,68 @@ mod windows_impl {
             .map_err(|e| format!("spawn_blocking failed: {}", e))?
     }
 
+    /// Try to get selected text via Windows UI Automation API.
+    /// This is faster and more reliable than simulating Ctrl+C — it reads
+    /// the selection directly without touching the clipboard.
+    /// Try to read selected text from a single UIA element via TextPattern.
+    fn try_text_pattern(element: &windows::Win32::UI::Accessibility::IUIAutomationElement) -> Option<String> {
+        use windows::Win32::UI::Accessibility::*;
+        use windows::core::Interface;
+
+        unsafe {
+            let pattern_unknown = element.GetCurrentPattern(UIA_TextPatternId).ok()?;
+            let text_pattern: IUIAutomationTextPattern = pattern_unknown.cast().ok()?;
+            let selection = text_pattern.GetSelection().ok()?;
+            let count = selection.Length().ok()?;
+            if count == 0 {
+                return None;
+            }
+            let range = selection.GetElement(0).ok()?;
+            let text = range.GetText(-1).ok()?;
+            let result = text.to_string();
+            if result.trim().is_empty() { None } else { Some(result) }
+        }
+    }
+
+    fn get_selected_text_uia() -> Option<String> {
+        use windows::Win32::UI::Accessibility::*;
+        use windows::Win32::System::Com::*;
+
+        unsafe {
+            let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+
+            let uia: IUIAutomation = CoCreateInstance(&CUIAutomation, None, CLSCTX_INPROC_SERVER).ok()?;
+            let focused = uia.GetFocusedElement().ok()?;
+
+            // Try TextPattern on the focused element itself
+            if let Some(text) = try_text_pattern(&focused) {
+                return Some(text);
+            }
+
+            // Walk up parent elements (up to 5 levels) looking for TextPattern
+            let walker = uia.CreateTreeWalker(&uia.RawViewCondition().ok()?).ok()?;
+            let mut current = focused;
+            for _ in 1..=5 {
+                match walker.GetParentElement(&current) {
+                    Ok(parent) => {
+                        if let Some(text) = try_text_pattern(&parent) {
+                            return Some(text);
+                        }
+                        current = parent;
+                    }
+                    Err(_) => break,
+                }
+            }
+
+            None
+        }
+    }
+
     /// Simulate Ctrl+C on Windows using SendInput.
     /// First releases any held modifier keys (Shift, Alt, Win) so that the
     /// target app receives a clean Ctrl+C instead of e.g. Ctrl+Shift+C
     /// (which opens DevTools in browsers).
-    #[cfg(target_os = "windows")]
-    pub fn simulate_copy_sync() -> Result<(), String> {
+    fn simulate_copy_via_sendinput() -> Result<(), String> {
         use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
             GetAsyncKeyState, SendInput, INPUT, INPUT_KEYBOARD, KEYBDINPUT,
             KEYEVENTF_KEYUP, VK_CONTROL, VK_C, VK_SHIFT, VK_LSHIFT, VK_RSHIFT,
@@ -329,6 +385,21 @@ mod windows_impl {
 
         std::thread::sleep(std::time::Duration::from_millis(200));
         Ok(())
+    }
+
+    /// Get selected text: tries UI Automation first (instant, no clipboard
+    /// side-effects), then falls back to Ctrl+C via SendInput.
+    #[cfg(target_os = "windows")]
+    pub fn simulate_copy_sync() -> Result<(), String> {
+        // Try UI Automation first — reads selection directly
+        if let Some(text) = get_selected_text_uia() {
+            let mut clipboard = arboard::Clipboard::new()
+                .map_err(|e| format!("Clipboard init failed: {e}"))?;
+            clipboard.set_text(text)
+                .map_err(|e| format!("Clipboard write failed: {e}"))?;
+            return Ok(());
+        }
+        simulate_copy_via_sendinput()
     }
 
 
