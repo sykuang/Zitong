@@ -140,7 +140,7 @@ Each provider supports: enable/disable toggle, live model fetching, set-as-defau
 
 ## 📋 Prerequisites
 
-- **Node.js** (v18 or later)
+- **Node.js** (v20.19+ or v22.12+)
 - **npm** (package manager, bundled with Node.js)
 - **Rust** (latest stable)
 - **Operating System**: macOS 10.15+, Windows 10+, or Linux
@@ -289,7 +289,7 @@ Zitong/
 
 ```bash
 # Frontend tests
-npm test
+npm run build
 
 # Rust tests
 cd src-tauri
