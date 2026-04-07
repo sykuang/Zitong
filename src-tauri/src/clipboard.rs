@@ -276,25 +276,15 @@ mod windows_impl {
             ];
 
             let mut release_inputs: Vec<INPUT> = Vec::new();
-            let mut restore_inputs: Vec<INPUT> = Vec::new();
 
             for &vk in modifiers_to_release {
                 if GetAsyncKeyState(vk as i32) < 0 {
-                    // Key is held — release it
                     let mut release: INPUT = std::mem::zeroed();
                     release.r#type = INPUT_KEYBOARD;
                     release.Anonymous.ki = KEYBDINPUT {
                         wVk: vk, wScan: 0, dwFlags: KEYEVENTF_KEYUP, time: 0, dwExtraInfo: 0,
                     };
                     release_inputs.push(release);
-
-                    // Re-press it after copy
-                    let mut restore: INPUT = std::mem::zeroed();
-                    restore.r#type = INPUT_KEYBOARD;
-                    restore.Anonymous.ki = KEYBDINPUT {
-                        wVk: vk, wScan: 0, dwFlags: 0, time: 0, dwExtraInfo: 0,
-                    };
-                    restore_inputs.push(restore);
                 }
             }
 

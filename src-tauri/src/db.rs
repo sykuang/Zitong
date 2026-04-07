@@ -306,10 +306,10 @@ impl Database {
         // Migrate AI command prompts to include "output only" instruction
         self.migrate_ai_command_prompts()?;
 
-        // Add translate commands for existing users
-        self.seed_translate_commands()?;
-        // Seed default AI commands if table is empty
+        // Seed default AI commands if table is empty (new installs)
         self.seed_ai_commands()?;
+        // Add translate commands for existing users who don't have them yet
+        self.seed_translate_commands()?;
         // Seed default assistants if table is empty
         self.seed_assistants()?;
 

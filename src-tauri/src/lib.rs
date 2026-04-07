@@ -222,14 +222,15 @@ pub fn run() {
             }
 
             // --- Hide main window on close instead of quitting (run in background) ---
-            // Also save window position/size on move/resize (trailing debounce).
+            // Also save window position/size on move/resize (debounced to 1s).
             let app_handle = app.handle().clone();
+            let last_save = std::sync::Arc::new(std::sync::Mutex::new(std::time::Instant::now()));
             main_window.on_window_event({
                 let win = main_window.clone();
                 move |event| {
                     match event {
                         tauri::WindowEvent::CloseRequested { api, .. } => {
-                            // Save final position before hiding
+                            // Always save final position before hiding
                             let db: tauri::State<'_, Database> = app_handle.state();
                             if let (Ok(pos), Ok(size)) = (win.outer_position(), win.outer_size()) {
                                 let _ = db.save_window_state(pos.x, pos.y, size.width, size.height);
@@ -247,10 +248,15 @@ pub fn run() {
                             }
                         }
                         tauri::WindowEvent::Moved(_) | tauri::WindowEvent::Resized(_) => {
-                            let db: tauri::State<'_, Database> = app_handle.state();
-                            if let (Ok(pos), Ok(size)) = (win.outer_position(), win.outer_size()) {
-                                eprintln!("[window] saving position: x={}, y={}, w={}, h={}", pos.x, pos.y, size.width, size.height);
-                                let _ = db.save_window_state(pos.x, pos.y, size.width, size.height);
+                            // Throttle: save at most once per second during drag
+                            let mut last = last_save.lock().unwrap();
+                            let now = std::time::Instant::now();
+                            if now.duration_since(*last).as_secs() >= 1 {
+                                *last = now;
+                                let db: tauri::State<'_, Database> = app_handle.state();
+                                if let (Ok(pos), Ok(size)) = (win.outer_position(), win.outer_size()) {
+                                    let _ = db.save_window_state(pos.x, pos.y, size.width, size.height);
+                                }
                             }
                         }
                         _ => {}
@@ -413,13 +419,15 @@ async fn toggle_overlay(app: tauri::AppHandle) -> Result<(), String> {
     }
     #[cfg(target_os = "windows")]
     {
-        // Fallback for non-macOS: use standard window show/hide
         if let Some(win) = app.get_webview_window("overlay") {
             if win.is_visible().unwrap_or(false) {
                 win.hide().map_err(|e| e.to_string())?;
             } else {
-                // Simulate Ctrl+C to copy selected text before showing the overlay
-                if let Err(e) = clipboard::simulate_copy_sync() {
+                // Simulate Ctrl+C on a blocking thread to avoid blocking the async runtime
+                if let Err(e) = tokio::task::spawn_blocking(clipboard::simulate_copy_sync)
+                    .await
+                    .map_err(|e| e.to_string())?
+                {
                     eprintln!("[toggle_overlay] simulate_copy_sync failed: {}", e);
                 }
                 win.center().map_err(|e| e.to_string())?;
