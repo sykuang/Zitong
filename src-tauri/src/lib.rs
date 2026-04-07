@@ -176,7 +176,7 @@ pub fn run() {
                                     }
                                 });
                             }
-                            #[cfg(not(target_os = "macos"))]
+                            #[cfg(target_os = "windows")]
                             {
                                 if let Some(win) = app.get_webview_window("overlay") {
                                     if win.is_visible().unwrap_or(false) {
@@ -390,7 +390,7 @@ async fn hide_overlay(app: tauri::AppHandle) -> Result<(), String> {
         })
         .map_err(|e| e.to_string())
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
     {
         if let Some(win) = app.get_webview_window("overlay") {
             win.hide().map_err(|e| e.to_string())?;
@@ -411,7 +411,7 @@ async fn toggle_overlay(app: tauri::AppHandle) -> Result<(), String> {
         })
         .map_err(|e| e.to_string())
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
     {
         // Fallback for non-macOS: use standard window show/hide
         if let Some(win) = app.get_webview_window("overlay") {

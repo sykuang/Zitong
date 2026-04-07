@@ -234,15 +234,15 @@ mod macos {
 }
 
 // ============================================================================
-// Non-macOS stub implementations
+// Windows implementation
 // ============================================================================
-#[cfg(not(target_os = "macos"))]
-mod stubs {
+#[cfg(target_os = "windows")]
+mod windows_impl {
     use super::PermissionsStatus;
 
     #[tauri::command]
     pub fn check_accessibility(_prompt: bool) -> bool {
-        // No special accessibility permissions needed on Windows/Linux
+        // No special accessibility permissions needed on Windows
         true
     }
 
@@ -341,10 +341,6 @@ mod stubs {
         Ok(())
     }
 
-    #[cfg(not(target_os = "windows"))]
-    pub fn simulate_copy_sync() -> Result<(), String> {
-        Err("Simulate copy not supported on this platform".to_string())
-    }
 
     #[tauri::command]
     pub fn check_permissions() -> PermissionsStatus {
@@ -393,5 +389,5 @@ mod stubs {
 #[cfg(target_os = "macos")]
 pub use macos::*;
 
-#[cfg(not(target_os = "macos"))]
-pub use stubs::*;
+#[cfg(target_os = "windows")]
+pub use windows_impl::*;
