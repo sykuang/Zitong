@@ -21,22 +21,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9
-
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: pnpm
+          cache: npm
 
-      - run: pnpm install --frozen-lockfile
+      - run: npm ci
 
       - name: TypeScript check
-        run: pnpm tsc --noEmit
+        run: npx tsc --noEmit
 
       - name: Vite build
-        run: pnpm build
+        run: npm run build
 
   rust:
     name: Rust (cargo check + clippy)
@@ -71,14 +67,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9
-
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: pnpm
+          cache: npm
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -86,14 +78,14 @@ jobs:
         with:
           workspaces: src-tauri
 
-      - run: pnpm install --frozen-lockfile
+      - run: npm ci
 
       - name: Build Tauri app (PR - no bundle/sign)
         if: github.event_name == 'pull_request'
-        run: pnpm tauri build --no-bundle
+        run: npx tauri build --no-bundle
 
       - name: Build Tauri app (push - full bundle)
         if: github.event_name == 'push'
-        run: pnpm tauri build
+        run: npx tauri build
         env:
           TAURI_SIGNING_PRIVATE_KEY: ""

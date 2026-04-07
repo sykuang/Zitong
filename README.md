@@ -141,7 +141,7 @@ Each provider supports: enable/disable toggle, live model fetching, set-as-defau
 ## 📋 Prerequisites
 
 - **Node.js** (v18 or later)
-- **pnpm** (package manager)
+- **npm** (package manager, bundled with Node.js)
 - **Rust** (latest stable)
 - **Operating System**: macOS 10.15+, Windows 10+, or Linux
 
@@ -157,26 +157,26 @@ Each provider supports: enable/disable toggle, live model fetching, set-as-defau
 
 2. **Install dependencies**
    ```bash
-   pnpm install
+   npm install
    ```
 
 3. **Run in development mode**
    ```bash
-   pnpm tauri dev
+   npx tauri dev
    ```
 
 ### Building for Production
 
 1. **Build the application**
    ```bash
-   pnpm tauri build
+   npx tauri build
    ```
 
 2. **Install the built application**
    
    **macOS:**
    ```bash
-   pnpm run install:dmg
+   npm run install:dmg
    ```
    This will mount the DMG and copy the app to your Applications folder.
 
@@ -289,7 +289,7 @@ Zitong/
 
 ```bash
 # Frontend tests
-pnpm test
+npm test
 
 # Rust tests
 cd src-tauri
