@@ -108,10 +108,42 @@ mod macos {
         Ok(())
     }
 
+    /// Simulate ⌘V by sending a keystroke via CGEvent.
+    fn simulate_paste_sync() -> Result<(), String> {
+        use core_graphics::event::{CGEvent, CGEventFlags, CGEventTapLocation, CGKeyCode};
+        use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
+
+        let source = CGEventSource::new(CGEventSourceStateID::HIDSystemState)
+            .map_err(|_| "Failed to create CGEventSource")?;
+
+        let key_v: CGKeyCode = 9;
+
+        let key_down = CGEvent::new_keyboard_event(source.clone(), key_v, true)
+            .map_err(|_| "Failed to create key down event")?;
+        let key_up = CGEvent::new_keyboard_event(source, key_v, false)
+            .map_err(|_| "Failed to create key up event")?;
+
+        key_down.set_flags(CGEventFlags::CGEventFlagCommand);
+        key_up.set_flags(CGEventFlags::CGEventFlagCommand);
+
+        key_down.post(CGEventTapLocation::HID);
+        key_up.post(CGEventTapLocation::HID);
+
+        Ok(())
+    }
+
     /// Tauri command wrapper for simulate_copy
     #[tauri::command]
     pub async fn simulate_copy() -> Result<(), String> {
         tokio::task::spawn_blocking(simulate_copy_sync)
+            .await
+            .map_err(|e| format!("spawn_blocking failed: {}", e))?
+    }
+
+    /// Tauri command wrapper for simulate_paste
+    #[tauri::command]
+    pub async fn simulate_paste() -> Result<(), String> {
+        tokio::task::spawn_blocking(simulate_paste_sync)
             .await
             .map_err(|e| format!("spawn_blocking failed: {}", e))?
     }
@@ -385,6 +417,53 @@ mod windows_impl {
 
         std::thread::sleep(std::time::Duration::from_millis(200));
         Ok(())
+    }
+
+    /// Simulate Ctrl+V on Windows using SendInput.
+    fn simulate_paste_sync() -> Result<(), String> {
+        use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
+            SendInput, INPUT, INPUT_KEYBOARD, KEYBDINPUT,
+            KEYEVENTF_KEYUP, VK_CONTROL, VK_V,
+        };
+
+        unsafe {
+            let mut inputs: [INPUT; 4] = std::mem::zeroed();
+
+            inputs[0].r#type = INPUT_KEYBOARD;
+            inputs[0].Anonymous.ki = KEYBDINPUT {
+                wVk: VK_CONTROL, wScan: 0, dwFlags: 0, time: 0, dwExtraInfo: 0,
+            };
+
+            inputs[1].r#type = INPUT_KEYBOARD;
+            inputs[1].Anonymous.ki = KEYBDINPUT {
+                wVk: VK_V, wScan: 0, dwFlags: 0, time: 0, dwExtraInfo: 0,
+            };
+
+            inputs[2].r#type = INPUT_KEYBOARD;
+            inputs[2].Anonymous.ki = KEYBDINPUT {
+                wVk: VK_V, wScan: 0, dwFlags: KEYEVENTF_KEYUP, time: 0, dwExtraInfo: 0,
+            };
+
+            inputs[3].r#type = INPUT_KEYBOARD;
+            inputs[3].Anonymous.ki = KEYBDINPUT {
+                wVk: VK_CONTROL, wScan: 0, dwFlags: KEYEVENTF_KEYUP, time: 0, dwExtraInfo: 0,
+            };
+
+            let sent = SendInput(4, inputs.as_ptr(), std::mem::size_of::<INPUT>() as i32);
+            if sent != 4 {
+                return Err(format!("SendInput returned {}, expected 4", sent));
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Tauri command wrapper for simulate_paste
+    #[tauri::command]
+    pub async fn simulate_paste() -> Result<(), String> {
+        tokio::task::spawn_blocking(simulate_paste_sync)
+            .await
+            .map_err(|e| format!("spawn_blocking failed: {}", e))?
     }
 
     /// Get selected text: tries UI Automation first (instant, no clipboard
