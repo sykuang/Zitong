@@ -130,19 +130,26 @@ export function OverlayApp() {
 
   // --- Result action handlers ---
 
+  const pasteAndHide = useCallback(async () => {
+    await hideOverlay();
+    // Small delay for the original app to regain focus
+    await new Promise((r) => setTimeout(r, 150));
+    await invoke("simulate_paste");
+  }, [hideOverlay]);
+
   const handleReplace = useCallback(async () => {
     if (phase.kind !== "result") return;
     await invoke("write_clipboard_text", { text: phase.result });
-    hideOverlay();
-  }, [phase, hideOverlay]);
+    await pasteAndHide();
+  }, [phase, pasteAndHide]);
 
   const handleInsertAfter = useCallback(async () => {
     if (phase.kind !== "result") return;
     // Write "original + result" to clipboard so user can paste
     const combined = phase.selectedText + "\n" + phase.result;
     await invoke("write_clipboard_text", { text: combined });
-    hideOverlay();
-  }, [phase, hideOverlay]);
+    await pasteAndHide();
+  }, [phase, pasteAndHide]);
 
   const handleOpenInNewChat = useCallback(async () => {
     if (phase.kind !== "result") return;
