@@ -333,6 +333,7 @@ pub fn run() {
             clipboard::read_clipboard_text,
             clipboard::write_clipboard_text,
             clipboard::simulate_copy,
+            clipboard::simulate_paste,
             clipboard::check_accessibility,
             clipboard::check_permissions,
             clipboard::request_permissions,
