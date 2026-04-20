@@ -185,9 +185,12 @@ export function OverlayApp() {
       // Run a follow-up: send the current result + follow-up instruction
       setPhase({ kind: "loading", label: instruction });
       try {
+        const systemPrompt = phase.selectedText
+          ? `The user's original text is:\n"""\n${phase.selectedText}\n"""\n\n${instruction} Preserve the user's original tone and style.`
+          : instruction;
         const result = await commands.executeAiCommand({
           selectedText: phase.result,
-          systemPrompt: instruction,
+          systemPrompt,
           providerId: phase.command.providerId ?? undefined,
           model: phase.command.model ?? undefined,
         });
@@ -374,7 +377,7 @@ export function OverlayApp() {
             <div className="flex gap-1.5">
               <PillButton icon={<RotateCcw className="w-3.5 h-3.5" />} label="Retry" onClick={handleRetry} />
               <PillButton icon={<Minus className="w-3.5 h-3.5" />} label="Shorter" onClick={() => handleFollowUp("Make it shorter and more concise.")} />
-              <PillButton icon={<Plus className="w-3.5 h-3.5" />} label="Longer" onClick={() => handleFollowUp("Expand and elaborate on this, making it longer and more detailed.")} />
+              <PillButton icon={<Plus className="w-3.5 h-3.5" />} label="Longer" onClick={() => handleFollowUp("Keep the original wording and tone, but expand with more details, examples, or supporting points to make it longer.")} />
               <PillButton icon={<MessageSquarePlus className="w-3.5 h-3.5" />} label="Chat" onClick={handleOpenInNewChat} />
             </div>
           </div>
