@@ -61,9 +61,13 @@ jobs:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # Notarization vars intentionally omitted: this project signs with a
+          # free Apple Development cert which cannot notarize. Tauri attempts
+          # notarization whenever any of APPLE_ID / APPLE_PASSWORD / APPLE_TEAM_ID
+          # is present in the environment (even as an empty string from a missing
+          # secret), and then fails with "Team ID must be at least 3 characters".
+          # Re-add these (sourced from real secrets) only if the project moves to
+          # a paid Apple Developer Program account.
 
       # Upload macOS artifacts (.dmg, .app.tar.gz)
       - name: Upload macOS artifacts
