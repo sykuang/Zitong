@@ -80,12 +80,5 @@ jobs:
 
       - run: npm ci
 
-      - name: Build Tauri app (PR - no bundle/sign)
-        if: github.event_name == 'pull_request'
+      - name: Build Tauri app (no bundle)
         run: npx tauri build --no-bundle
-
-      - name: Build Tauri app (push - full bundle)
-        if: github.event_name == 'push'
-        run: npx tauri build
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ""
