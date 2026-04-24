@@ -6,6 +6,8 @@ import { Sidebar } from "@/components/Sidebar";
 import { ChatArea } from "@/components/ChatArea";
 import { PermissionGuide } from "@/components/PermissionGuide";
 import type { PermissionsStatus } from "@/types";
+import type { UpdateInfo } from "@/commands";
+import { promptAndInstall } from "@/commands/updater";
 
 const PERMISSION_GUIDE_DISMISSED_KEY = "zitong_permission_guide_dismissed";
 
@@ -59,6 +61,24 @@ function AppShell() {
       setShowPermissionGuide(true);
     });
     return () => { unlisten.then((fn) => fn()); };
+  }, []);
+
+  // Listen for "update://available" emitted by the backend's silent
+  // post-startup update check. Drives the user-facing prompt + install.
+  useEffect(() => {
+    let cancelled = false;
+    const unlisten = listen<UpdateInfo>("update://available", async (e) => {
+      if (cancelled) return;
+      try {
+        await promptAndInstall(e.payload);
+      } catch (err) {
+        console.error("[updater] promptAndInstall failed:", err);
+      }
+    });
+    return () => {
+      cancelled = true;
+      unlisten.then((fn) => fn());
+    };
   }, []);
 
   const handlePermissionDone = useCallback(() => {

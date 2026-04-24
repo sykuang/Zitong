@@ -42,6 +42,8 @@ thiserror = "1"
 base64 = "0.22"
 tauri-plugin-clipboard-manager = "2.3.2"
 arboard = "3"
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
 
 # macOS NSPanel for overlay above fullscreen apps
 [target.'cfg(target_os = "macos")'.dependencies]

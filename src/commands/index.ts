@@ -225,3 +225,27 @@ export async function setLaunchAtLogin(enabled: boolean): Promise<void> {
 export async function getLaunchAtLogin(): Promise<boolean> {
   return invoke("get_launch_at_login");
 }
+
+// ============================================
+// Updater Commands
+// ============================================
+
+export interface UpdateInfo {
+  available: boolean;
+  current_version: string;
+  new_version: string | null;
+  notes: string | null;
+  date: string | null;
+}
+
+export async function checkForUpdatesManual(): Promise<UpdateInfo> {
+  return invoke("check_for_updates_manual");
+}
+
+export async function checkForUpdatesSilent(): Promise<UpdateInfo | null> {
+  return invoke("check_for_updates_silent");
+}
+
+export async function getLastUpdateCheck(): Promise<number | null> {
+  return invoke("get_last_update_check");
+}

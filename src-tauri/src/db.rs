@@ -828,6 +828,28 @@ impl Database {
         Ok(())
     }
 
+    // Raw key/value access for ad-hoc settings that don't belong on AppSettings
+    // (e.g. updater rate-limit timestamps).
+    pub fn get_setting_raw(&self, key: &str) -> Result<Option<String>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare("SELECT value FROM settings WHERE key = ?1")?;
+        let mut rows = stmt.query(params![key])?;
+        if let Some(row) = rows.next()? {
+            Ok(Some(row.get(0)?))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn set_setting_raw(&self, key: &str, value: &str) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
+            params![key, value],
+        )?;
+        Ok(())
+    }
+
     // ============================================
     // Window State (position & size persistence)
     // ============================================

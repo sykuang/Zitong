@@ -1,6 +1,9 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import type { AppSettings } from "@/types";
 import * as commands from "@/commands";
+import { promptAndInstall } from "@/commands/updater";
+import { listen } from "@tauri-apps/api/event";
+import { getVersion } from "@tauri-apps/api/app";
 
 export function GeneralTab({
   settings,
@@ -174,6 +177,75 @@ export function GeneralTab({
           />
           <span className="text-sm text-text-primary">Stream responses</span>
         </label>
+      </div>
+
+      <SoftwareUpdatesSection />
+    </div>
+  );
+}
+
+function SoftwareUpdatesSection() {
+  const [currentVersion, setCurrentVersion] = useState<string>("");
+  const [status, setStatus] = useState<string>("");
+  const [checking, setChecking] = useState(false);
+  const [lastCheckUnix, setLastCheckUnix] = useState<number | null>(null);
+
+  useEffect(() => {
+    getVersion().then(setCurrentVersion).catch(() => {});
+    commands.getLastUpdateCheck().then(setLastCheckUnix).catch(() => {});
+  }, []);
+
+  const runCheck = useCallback(async () => {
+    if (checking) return;
+    setChecking(true);
+    setStatus("Checking…");
+    try {
+      const info = await commands.checkForUpdatesManual();
+      setLastCheckUnix(Math.floor(Date.now() / 1000));
+      if (info.available && info.new_version) {
+        setStatus(`Update available: ${info.new_version}`);
+        await promptAndInstall(info);
+      } else {
+        setStatus("You're on the latest version.");
+      }
+    } catch (err) {
+      setStatus(`Check failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setChecking(false);
+    }
+  }, [checking]);
+
+  // The macOS app menu's "Check for Updates…" item routes here via this event.
+  useEffect(() => {
+    const unlisten = listen("menu://check-for-updates", () => {
+      runCheck();
+    });
+    return () => { unlisten.then((fn) => fn()); };
+  }, [runCheck]);
+
+  const lastCheckLabel = lastCheckUnix
+    ? new Date(lastCheckUnix * 1000).toLocaleString()
+    : "Never";
+
+  return (
+    <div className="border-t border-border pt-4 mt-2 space-y-2">
+      <h3 className="text-sm font-semibold text-text-primary">Software Updates</h3>
+      <div className="text-xs text-text-secondary">
+        Current version: <span className="font-mono">{currentVersion || "…"}</span>
+      </div>
+      <div className="text-xs text-text-secondary">
+        Last checked: {lastCheckLabel}
+      </div>
+      <div className="flex items-center gap-3 pt-1">
+        <button
+          type="button"
+          onClick={runCheck}
+          disabled={checking}
+          className="px-3 py-1.5 text-sm rounded-lg glass-input hover:bg-white/5 disabled:opacity-50"
+        >
+          {checking ? "Checking…" : "Check Now"}
+        </button>
+        {status && <span className="text-xs text-text-secondary">{status}</span>}
       </div>
     </div>
   );

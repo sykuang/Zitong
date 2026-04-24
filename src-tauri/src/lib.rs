@@ -1,10 +1,12 @@
 mod commands;
 mod db;
 mod providers;
+mod updater;
 
 use db::Database;
 use std::path::PathBuf;
 use tauri::Manager;
+use tauri::Emitter;
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::TrayIconBuilder;
 
@@ -32,7 +34,9 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_clipboard_manager::init());
+        .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init());
 
     #[cfg(desktop)]
     {
@@ -68,6 +72,10 @@ pub fn run() {
                         Some(AboutMetadataBuilder::new().build()),
                     )?)
                     .separator()
+                    .item(
+                        &MenuItemBuilder::with_id("check_for_updates", "Check for Updates...")
+                            .build(app)?,
+                    )
                     .item(
                         &MenuItemBuilder::with_id("settings", "Settings...")
                             .accelerator("CommandOrControl+,")
@@ -105,13 +113,26 @@ pub fn run() {
 
                 let handle = app.handle().clone();
                 app.on_menu_event(move |_app, event| {
-                    if event.id().as_ref() == "settings" {
-                        let h = handle.clone();
-                        tauri::async_runtime::spawn(async move {
-                            if let Err(e) = open_settings(h).await {
-                                eprintln!("[menu] Failed to open settings: {}", e);
-                            }
-                        });
+                    match event.id().as_ref() {
+                        "settings" => {
+                            let h = handle.clone();
+                            tauri::async_runtime::spawn(async move {
+                                if let Err(e) = open_settings(h).await {
+                                    eprintln!("[menu] Failed to open settings: {}", e);
+                                }
+                            });
+                        }
+                        "check_for_updates" => {
+                            // Open settings (gives us a visible window for the
+                            // result UI) and emit an event the front-end picks
+                            // up to drive the update flow.
+                            let h = handle.clone();
+                            tauri::async_runtime::spawn(async move {
+                                let _ = open_settings(h.clone()).await;
+                                let _ = h.emit("menu://check-for-updates", ());
+                            });
+                        }
+                        _ => {}
                     }
                 });
             }
@@ -273,6 +294,24 @@ pub fn run() {
                 }
             }
 
+            // Background update check ~5s after launch. Rate-limited inside
+            // check_for_updates_silent so we don't spam GitHub. If an update
+            // is available we emit `update://available` for the front-end to
+            // show a confirmation prompt before downloading.
+            {
+                let handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                    match updater::check_for_updates_silent(handle.clone()).await {
+                        Ok(Some(info)) if info.available => {
+                            let _ = handle.emit("update://available", info);
+                        }
+                        Ok(_) => {}
+                        Err(e) => eprintln!("[updater] silent check failed: {e}"),
+                    }
+                });
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -339,6 +378,10 @@ pub fn run() {
             // Autostart
             set_launch_at_login,
             get_launch_at_login,
+            // Updater
+            updater::check_for_updates_manual,
+            updater::check_for_updates_silent,
+            updater::get_last_update_check,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
