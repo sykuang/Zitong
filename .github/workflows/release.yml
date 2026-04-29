@@ -81,4 +81,8 @@ jobs:
           releaseDraft: ${{ github.event_name == 'workflow_dispatch' && inputs.draft || true }}
           prerelease: false
           generateReleaseNotes: true
-          args: --target ${{ matrix.target }}
+          # Enable signed updater artifacts only for release builds. The repo
+          # default in tauri.conf.json is `createUpdaterArtifacts: false` so a
+          # fresh `git clone && npm run tauri -- build` works without the
+          # TAURI_SIGNING_PRIVATE_KEY secret.
+          args: --target ${{ matrix.target }} --config src-tauri/tauri.release.conf.json
