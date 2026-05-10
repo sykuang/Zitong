@@ -2,7 +2,7 @@
 
 **Your AI, one shortcut away — even above fullscreen apps.**
 
-Zitong is a free, open-source desktop AI chat client for macOS and Windows that brings ChatGPT, Claude, Gemini, GitHub Copilot, and Ollama into a single Spotlight-like overlay. Press a global hotkey, select any text in any app, and let AI transform it instantly — no browser tabs, no context switching, no copy-paste dance.
+Zitong is a free, open-source desktop AI chat client for macOS and Windows that brings OpenAI (ChatGPT models), Claude, Gemini, GitHub Copilot, and Ollama into a single Spotlight-like overlay. Press a global hotkey, select any text in any app, and let AI transform it instantly — no browser tabs, no context switching, no copy-paste dance.
 
 Built with Tauri + React, lightweight, fully private (all conversations stored locally in SQLite), and compatible with **10+ AI providers** out of the box. A free, open-source alternative to BoltAI and Raycast AI.
 
@@ -317,7 +317,7 @@ Zitong is a free, open-source desktop AI chat client for macOS and Windows. It p
 
 ### Is Zitong free?
 
-Yes. Zitong is 100% free and open source under the MIT license. You only pay for the AI provider API keys you choose to use (or use free local models via Ollama).
+Yes. Zitong is 100% free and open source. You only pay for the AI provider API keys you choose to use (or use free local models via Ollama).
 
 ### How is Zitong different from the ChatGPT or Claude desktop app?
 
@@ -325,7 +325,7 @@ The official ChatGPT and Claude apps only talk to one provider and don't offer a
 
 ### Is Zitong a good BoltAI alternative?
 
-Yes. Zitong replicates BoltAI's overlay-driven workflow but is **free, open source, and cross-platform** (macOS *and* Windows). It also adds first-class GitHub Copilot OAuth support, which BoltAI does not provide.
+Yes. Zitong replicates BoltAI's overlay-driven workflow but is **free, open source, and cross-platform** (macOS *and* Windows). It also includes built-in GitHub Copilot OAuth (device-flow) sign-in.
 
 ### Which AI providers does Zitong support?
 
@@ -333,7 +333,7 @@ OpenAI, Anthropic Claude, Google Gemini, GitHub Copilot, Ollama (local), Mistral
 
 ### Does Zitong send my data to any server?
 
-No. All conversations, settings, assistants, and templates are stored in a local SQLite database on your machine. The only outbound traffic is the API call to the AI provider you choose for each message.
+No. All conversations, settings, assistants, and templates are stored in a local SQLite database on your machine. Outbound traffic is limited to: API calls to the AI provider you choose for each message, provider model-list/OAuth endpoints when you sign in or refresh available models, and an automatic update check to the Zitong release endpoint on launch.
 
 ### Does Zitong work on Linux?
 
@@ -341,7 +341,7 @@ The current release targets macOS and Windows. Linux builds are possible from so
 
 ### Does Zitong support GitHub Copilot?
 
-Yes. Zitong is one of the few desktop AI clients with full GitHub Copilot OAuth (device-flow) sign-in, giving you access to Copilot's chat models.
+Yes. Zitong supports GitHub Copilot OAuth (device-flow) sign-in, giving you access to Copilot's chat models.
 
 ## 🤝 Contributing
 
@@ -355,7 +355,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## 📝 License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+License terms are not yet finalized. A LICENSE file will be added to the repository; until then, please contact the maintainers before redistributing.
 
 ## 🙏 Acknowledgments
 
