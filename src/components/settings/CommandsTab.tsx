@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
-import { Plus, Trash2 } from "lucide-react";
-import type { AiCommand, Provider } from "@/types";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { Plus, Trash2, GripVertical } from "lucide-react";
+import type { AiCommand, Provider, ModelInfo } from "@/types";
 import * as commands from "@/commands";
 
 const BEHAVIOR_OPTIONS = [
@@ -20,6 +20,8 @@ export function CommandsTab({ providers, onRefresh }: { providers: Provider[]; o
   const [cmds, setCmds] = useState<AiCommand[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
 
   useEffect(() => {
     loadCommands();
@@ -28,8 +30,9 @@ export function CommandsTab({ providers, onRefresh }: { providers: Provider[]; o
   async function loadCommands() {
     try {
       const list = await commands.listAiCommands();
-      setCmds(list);
-      if (!selectedId && list.length > 0) setSelectedId(list[0].id);
+      const sorted = [...list].sort((a, b) => a.sortOrder - b.sortOrder);
+      setCmds(sorted);
+      if (!selectedId && sorted.length > 0) setSelectedId(sorted[0].id);
     } catch (e) {
       console.error("Failed to load AI commands:", e);
     }
@@ -95,6 +98,34 @@ export function CommandsTab({ providers, onRefresh }: { providers: Provider[]; o
     }
   }
 
+  async function handleReorder(sourceId: string, targetId: string) {
+    if (sourceId === targetId) return;
+    const sourceIdx = cmds.findIndex((c) => c.id === sourceId);
+    const targetIdx = cmds.findIndex((c) => c.id === targetId);
+    if (sourceIdx < 0 || targetIdx < 0) return;
+
+    const next = [...cmds];
+    const [moved] = next.splice(sourceIdx, 1);
+    next.splice(targetIdx, 0, moved);
+
+    const reindexed = next.map((c, i) => ({ ...c, sortOrder: i }));
+    const prev = cmds;
+    setCmds(reindexed);
+
+    try {
+      // Persist only commands whose sortOrder actually changed.
+      const changed = reindexed.filter((c) => {
+        const old = prev.find((p) => p.id === c.id);
+        return !old || old.sortOrder !== c.sortOrder;
+      });
+      await Promise.all(changed.map((c) => commands.saveAiCommand(c)));
+      onRefresh?.();
+    } catch (e) {
+      console.error("Failed to reorder commands:", e);
+      setCmds(prev);
+    }
+  }
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
@@ -117,13 +148,46 @@ export function CommandsTab({ providers, onRefresh }: { providers: Provider[]; o
           {cmds.map((cmd) => (
             <div
               key={cmd.id}
+              draggable
+              onDragStart={(e) => {
+                setDragId(cmd.id);
+                e.dataTransfer.effectAllowed = "move";
+                e.dataTransfer.setData("text/plain", cmd.id);
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "move";
+                if (dragOverId !== cmd.id) setDragOverId(cmd.id);
+              }}
+              onDragLeave={() => {
+                if (dragOverId === cmd.id) setDragOverId(null);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                const sourceId = dragId || e.dataTransfer.getData("text/plain");
+                setDragId(null);
+                setDragOverId(null);
+                if (sourceId) handleReorder(sourceId, cmd.id);
+              }}
+              onDragEnd={() => {
+                setDragId(null);
+                setDragOverId(null);
+              }}
               onClick={() => setSelectedId(cmd.id)}
-              className={`flex items-center gap-2 px-3 py-2.5 text-sm cursor-pointer transition-colors group border-b border-glass-border ${
+              className={`flex items-center gap-2 px-2 py-2.5 text-sm cursor-pointer transition-colors group border-b border-glass-border ${
                 selectedId === cmd.id
                   ? "bg-primary/10 text-primary"
                   : "text-text-primary glass-hover"
+              } ${dragId === cmd.id ? "opacity-50" : ""} ${
+                dragOverId === cmd.id && dragId !== cmd.id
+                  ? "border-t-2 border-t-primary"
+                  : ""
               }`}
             >
+              <GripVertical
+                className="w-3.5 h-3.5 flex-shrink-0 text-text-muted cursor-grab active:cursor-grabbing"
+                aria-hidden
+              />
               <input
                 type="checkbox"
                 checked={cmd.enabled}
@@ -194,6 +258,46 @@ function CommandDetail({
   const [outputLanguage, setOutputLanguage] = useState(command.outputLanguage);
   const [keyboardShortcut, setKeyboardShortcut] = useState(command.keyboardShortcut || "");
   const [showIconPicker, setShowIconPicker] = useState(false);
+  const [models, setModels] = useState<ModelInfo[]>([]);
+  const [modelsLoading, setModelsLoading] = useState(false);
+  const [modelsError, setModelsError] = useState<string | null>(null);
+
+  const latestRef = useRef({
+    label, icon, behavior, systemPrompt, providerId, model, outputLanguage, keyboardShortcut,
+  });
+  latestRef.current = {
+    label, icon, behavior, systemPrompt, providerId, model, outputLanguage, keyboardShortcut,
+  };
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const flushSave = useCallback(
+    (overrides: Partial<typeof latestRef.current> = {}) => {
+      const v = { ...latestRef.current, ...overrides };
+      onSave({
+        ...command,
+        label: v.label,
+        icon: v.icon,
+        behavior: v.behavior,
+        systemPrompt: v.systemPrompt,
+        providerId: v.providerId || undefined,
+        model: v.model || undefined,
+        outputLanguage: v.outputLanguage,
+        keyboardShortcut: v.keyboardShortcut || undefined,
+      });
+    },
+    [command, onSave]
+  );
+
+  const autosave = useCallback(
+    (overrides: Partial<typeof latestRef.current> = {}) => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => {
+        debounceRef.current = null;
+        flushSave(overrides);
+      }, 400);
+    },
+    [flushSave]
+  );
 
   useEffect(() => {
     setLabel(command.label);
@@ -206,19 +310,47 @@ function CommandDetail({
     setKeyboardShortcut(command.keyboardShortcut || "");
   }, [command]);
 
-  function handleSubmit() {
-    onSave({
-      ...command,
-      label,
-      icon,
-      behavior,
-      systemPrompt,
-      providerId: providerId || undefined,
-      model: model || undefined,
-      outputLanguage,
-      keyboardShortcut: keyboardShortcut || undefined,
-    });
-  }
+  // Flush any pending save when the editor unmounts or switches commands.
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+        debounceRef.current = null;
+        flushSave();
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [command.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!providerId) {
+      setModels([]);
+      setModelsError(null);
+      setModelsLoading(false);
+      return;
+    }
+    setModelsLoading(true);
+    setModelsError(null);
+    commands
+      .listModels(providerId)
+      .then((list) => {
+        if (cancelled) return;
+        setModels(list);
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        console.error("Failed to load models:", e);
+        setModels([]);
+        setModelsError(typeof e === "string" ? e : "Failed to load models");
+      })
+      .finally(() => {
+        if (!cancelled) setModelsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [providerId]);
 
   return (
     <div className="space-y-3">
@@ -237,7 +369,11 @@ function CommandDetail({
               {ICON_OPTIONS.map((emoji) => (
                 <button
                   key={emoji}
-                  onClick={() => { setIcon(emoji); setShowIconPicker(false); }}
+                  onClick={() => {
+                    setIcon(emoji);
+                    setShowIconPicker(false);
+                    autosave({ icon: emoji });
+                  }}
                   className={`w-9 h-9 flex items-center justify-center rounded-lg text-base transition-colors ${
                     icon === emoji ? "bg-primary/15 ring-1 ring-primary" : "glass-hover"
                   }`}
@@ -249,11 +385,14 @@ function CommandDetail({
           )}
         </div>
         <div className="flex-1">
-          <label className="block text-xs font-medium text-text-secondary mb-1">Label</label>
+          <label className="flex items-center justify-between text-xs font-medium text-text-secondary mb-1">
+            <span>Label</span>
+            {saving && <span className="text-success">Saved</span>}
+          </label>
           <input
             type="text"
             value={label}
-            onChange={(e) => setLabel(e.target.value)}
+            onChange={(e) => { setLabel(e.target.value); autosave({ label: e.target.value }); }}
             className="w-full px-3 py-2 text-sm rounded-lg glass-input text-text-primary"
           />
         </div>
@@ -264,7 +403,11 @@ function CommandDetail({
         <label className="block text-xs font-medium text-text-secondary mb-1">Behavior</label>
         <select
           value={behavior}
-          onChange={(e) => setBehavior(e.target.value as AiCommand["behavior"])}
+          onChange={(e) => {
+            const v = e.target.value as AiCommand["behavior"];
+            setBehavior(v);
+            autosave({ behavior: v });
+          }}
           className="w-full px-3 py-2 text-sm rounded-lg glass-input text-text-primary"
         >
           {BEHAVIOR_OPTIONS.map((opt) => (
@@ -273,16 +416,21 @@ function CommandDetail({
         </select>
       </div>
 
-      {/* System Prompt */}
+      {/* Instructions */}
       <div>
-        <label className="block text-xs font-medium text-text-secondary mb-1">System Prompt</label>
+        <label className="block text-xs font-medium text-text-secondary mb-1">Instructions</label>
         <textarea
           value={systemPrompt}
-          onChange={(e) => setSystemPrompt(e.target.value)}
+          onChange={(e) => { setSystemPrompt(e.target.value); autosave({ systemPrompt: e.target.value }); }}
           rows={5}
-          placeholder="Instructions for the AI when this command is triggered..."
+          placeholder={"Tell the AI what to do. Use {{selection}} to insert the user's selected text inline.\n\nExample:\nTranslate the following text to French:\n{{selection}}"}
           className="w-full px-3 py-2 text-sm rounded-lg glass-input text-text-primary resize-none font-mono"
         />
+        <p className="mt-1 text-[11px] text-text-muted">
+          Insert the user's selected text with{" "}
+          <code className="px-1 py-0.5 rounded bg-glass-border/40 text-text-secondary">{`{{selection}}`}</code>.
+          If omitted, the selection is appended automatically as the user message.
+        </p>
       </div>
 
       {/* AI Service + Model row */}
@@ -291,7 +439,12 @@ function CommandDetail({
           <label className="block text-xs font-medium text-text-secondary mb-1">AI Service</label>
           <select
             value={providerId}
-            onChange={(e) => { setProviderId(e.target.value); setModel(""); }}
+            onChange={(e) => {
+              const v = e.target.value;
+              setProviderId(v);
+              setModel("");
+              autosave({ providerId: v, model: "" });
+            }}
             className="w-full px-3 py-2 text-sm rounded-lg glass-input text-text-primary"
           >
             <option value="">Default</option>
@@ -303,14 +456,41 @@ function CommandDetail({
           </select>
         </div>
         <div className="flex-1">
-          <label className="block text-xs font-medium text-text-secondary mb-1">Model</label>
-          <input
-            type="text"
-            value={model}
-            onChange={(e) => setModel(e.target.value)}
-            placeholder="Default"
-            className="w-full px-3 py-2 text-sm rounded-lg glass-input text-text-primary"
-          />
+          <label className="block text-xs font-medium text-text-secondary mb-1">
+            Model
+            {modelsLoading && (
+              <span className="ml-2 text-text-muted font-normal">Loading…</span>
+            )}
+            {modelsError && (
+              <span className="ml-2 text-error font-normal">{modelsError}</span>
+            )}
+          </label>
+          {providerId && models.length > 0 ? (
+            <select
+              value={model}
+              onChange={(e) => { setModel(e.target.value); autosave({ model: e.target.value }); }}
+              className="w-full px-3 py-2 text-sm rounded-lg glass-input text-text-primary"
+            >
+              <option value="">Default</option>
+              {model && !models.some((m) => m.id === model) && (
+                <option value={model}>{model} (custom)</option>
+              )}
+              {models.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name || m.id}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              type="text"
+              value={model}
+              onChange={(e) => { setModel(e.target.value); autosave({ model: e.target.value }); }}
+              placeholder={providerId ? "Default" : "Select an AI Service first"}
+              disabled={!providerId || modelsLoading}
+              className="w-full px-3 py-2 text-sm rounded-lg glass-input text-text-primary disabled:opacity-60"
+            />
+          )}
         </div>
       </div>
 
@@ -320,7 +500,7 @@ function CommandDetail({
           <label className="block text-xs font-medium text-text-secondary mb-1">Output Language</label>
           <select
             value={outputLanguage}
-            onChange={(e) => setOutputLanguage(e.target.value)}
+            onChange={(e) => { setOutputLanguage(e.target.value); autosave({ outputLanguage: e.target.value }); }}
             className="w-full px-3 py-2 text-sm rounded-lg glass-input text-text-primary"
           >
             {LANGUAGE_OPTIONS.map((lang) => (
@@ -333,24 +513,11 @@ function CommandDetail({
           <input
             type="text"
             value={keyboardShortcut}
-            onChange={(e) => setKeyboardShortcut(e.target.value)}
+            onChange={(e) => { setKeyboardShortcut(e.target.value); autosave({ keyboardShortcut: e.target.value }); }}
             placeholder="e.g. Cmd+Shift+I"
             className="w-full px-3 py-2 text-sm rounded-lg glass-input text-text-primary"
           />
         </div>
-      </div>
-
-      {/* Save button */}
-      <div className="flex items-center gap-2 pt-1">
-        <button
-          onClick={handleSubmit}
-          className="px-4 py-2 text-sm rounded-lg bg-primary text-white hover:bg-primary-hover transition-colors"
-        >
-          Save Command
-        </button>
-        {saving && (
-          <span className="text-xs text-success font-medium">Saved!</span>
-        )}
       </div>
     </div>
   );

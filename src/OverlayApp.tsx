@@ -4,7 +4,7 @@ import {
   Loader2,
   AlertCircle,
   Check,
-  CornerDownLeft,
+  Copy,
   X,
   RotateCcw,
   Minus,
@@ -16,6 +16,25 @@ import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { AiCommand } from "@/types";
 import * as commands from "@/commands";
+
+// Render an AI command's instructions template against the user's selected text.
+// If the template contains `{{selection}}` (or `{{ selection }}`), substitute it
+// inline and send the rendered text as the user message (no separate system prompt).
+// Otherwise keep the legacy behavior: instructions act as the system prompt and the
+// raw selection becomes the user message.
+function renderPromptTemplate(
+  instructions: string,
+  selectedText: string
+): { systemPrompt: string; userText: string } {
+  const placeholder = /\{\{\s*selection\s*\}\}/g;
+  if (placeholder.test(instructions)) {
+    return {
+      systemPrompt: "",
+      userText: instructions.replace(placeholder, selectedText),
+    };
+  }
+  return { systemPrompt: instructions, userText: selectedText };
+}
 
 export function OverlayApp() {
   const [query, setQuery] = useState("");
@@ -74,9 +93,10 @@ export function OverlayApp() {
     async (cmd: AiCommand, selectedText: string) => {
       setPhase({ kind: "loading", label: cmd.label });
       try {
+        const { systemPrompt, userText } = renderPromptTemplate(cmd.systemPrompt, selectedText);
         const result = await commands.executeAiCommand({
-          selectedText,
-          systemPrompt: cmd.systemPrompt,
+          selectedText: userText,
+          systemPrompt,
           providerId: cmd.providerId ?? undefined,
           model: cmd.model ?? undefined,
         });
@@ -143,13 +163,11 @@ export function OverlayApp() {
     await pasteAndHide();
   }, [phase, pasteAndHide]);
 
-  const handleInsertAfter = useCallback(async () => {
+  const handleCopy = useCallback(async () => {
     if (phase.kind !== "result") return;
-    // Write "original + result" to clipboard so user can paste
-    const combined = phase.selectedText + "\n" + phase.result;
-    await invoke("write_clipboard_text", { text: combined });
-    await pasteAndHide();
-  }, [phase, pasteAndHide]);
+    await invoke("write_clipboard_text", { text: phase.result });
+    await hideOverlay();
+  }, [phase, hideOverlay]);
 
   const handleOpenInNewChat = useCallback(async () => {
     if (phase.kind !== "result") return;
@@ -370,7 +388,7 @@ export function OverlayApp() {
             {/* Row 1: Primary actions */}
             <div className="flex gap-1.5">
               <PillButton icon={<Check className="w-3.5 h-3.5" />} label="Replace" onClick={handleReplace} primary />
-              <PillButton icon={<CornerDownLeft className="w-3.5 h-3.5" />} label="Insert" onClick={handleInsertAfter} />
+              <PillButton icon={<Copy className="w-3.5 h-3.5" />} label="Copy" onClick={handleCopy} />
               <PillButton icon={<X className="w-3.5 h-3.5" />} label="Discard" onClick={handleDiscard} destructive />
             </div>
             {/* Row 2: Modify actions */}

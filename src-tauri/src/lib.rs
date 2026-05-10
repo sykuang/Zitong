@@ -520,6 +520,9 @@ async fn open_settings(app: tauri::AppHandle) -> Result<(), String> {
         .resizable(true)
         .decorations(true)
         .visible(true)
+        // Disable the OS-level file-drop handler so HTML5 drag-and-drop
+        // (e.g. reordering rows in the Commands tab) works inside the webview.
+        .disable_drag_drop_handler()
         .build()
         .map_err(|e| e.to_string())?;
 
